@@ -1,0 +1,85 @@
+#!/bin/bash
+
+FILTER_LOGNAME()
+{
+check_name(){
+FILE="$1"
+AWK_COUNT=0
+regex='([2][0][1-9][0-9][0-9][0-9][0-9][0-9])'
+regex1='([0-9][0-9])'
+regex2='([0-9])'
+while :
+do 
+  AWK_COUNT=$(expr ${AWK_COUNT} + 1 )
+  PATTERN=$(echo ${FILE} |awk -F"_" '{print $'$AWK_COUNT'}')
+
+  if [[ ${PATTERN} =~ $regex ]]
+    then
+       DATE_PATH=$(echo ${PATTERN}| cut -c1-8)
+       return 0 
+       break
+  elif [[ ${PATTERN} =~ $regex1 ]]
+     then 
+       DATE_PATH="NO_DATE"
+       return 2
+       break
+  elif  [[ ${PATTERN} =~ $regex2 ]]
+      then 
+       DATE_PATH="NO_DATE"
+       return 2
+       break
+  fi
+    
+   if [ -z ${PATTERN} ]
+    then 
+       return 3
+       break
+   fi
+done  
+
+
+
+}
+
+ls -ltr ${SOURCE_PATH}/*.${FILE_TYPE}* 2>/dev/null|awk '{print $NF}'|grep -v $(hostname)| while read log 
+ do 
+  ## Change Date format ## 
+  ORG_FILE=$log  
+  DATENEW=$(echo "${log}"| sed "s/-//g")
+  if [ "${ORG_FILE}" ==  "${DATENEW}" ]
+    then
+     continue
+  else
+     mv "${ORG_FILE}" "${DATENEW}" >/dev/null
+  fi
+ done
+
+##Change File name
+ls -ltr ${SOURCE_PATH}/*.${FILE_TYPE}* 2>/dev/null|awk '{print $NF}'|grep -v $(hostname)| while read log
+ do
+  ORG_FILE=$log
+  check_name "$(echo ${log}|awk -F"/" '{print $NF}')";CK=$?
+  if [ "${CK}" -eq 0 ]
+    then
+      FILENEW=$(echo "${log}"|awk -v HOST=$(hostname) -F"." '{print $1"_"HOST"."$2}')
+      mv ${ORG_FILE} ${FILENEW}
+      if [ $? -eq 0 ] 
+        then
+         WRITE_LOG "Change file name from ${ORG_FILE} to ${FILENEW} successfully" 
+      else 
+         WRITE_LOG "Change file name from ${ORG_FILE} to ${FILENEW} failed"
+      fi
+  elif [ ${CK} -eq 2 ]
+    then 
+      DATE_MOD=$(stat ${log}|grep "Modify"  |awk '{print $2}'|sed "s/-//g")
+      FILENEW=$(echo "${log}"|awk -v HOST=$(hostname) -v DATE_M=${DATE_MOD} -F"." '{print $1"_"DATE_M"_"HOST"."$2}')
+      mv ${ORG_FILE} ${FILENEW}
+      if [ $? -eq 0 ] 
+        then
+         WRITE_LOG "Change file name from ${ORG_FILE} to ${FILENEW} successfully" 
+      else 
+         WRITE_LOG "Change file name from ${ORG_FILE} to ${FILENEW} failed"
+      fi
+  fi
+ done
+}

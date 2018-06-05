@@ -1,0 +1,27 @@
+---------------------------------------------------	
+changelog version sand_filerotor to sand_filerotor_sid.v03r180517
+       - fixed all bug for interstella project 
+       - Adding setup script for installation sand file rotor 
+       - Build new function check file name 
+       - Build and fix check dupplicated process 
+       
+Changelog version to sand_filerotor_sid.v04r210717
+       - Build new function custombss 
+       - Build new function customlog 
+       - Update setup command ,for prepare and deploy script 
+       - Fix bug any error  
+
+
+Changelog version to sand_filerotor_sid.v04r12102017
+      - Update function BSS project support sync file source to destination 
+      - Update setup command create directory 
+      - Update sandlogtest for generate sand file log 
+      - Update configuration script template for all funtion 
+      - Delete plugin not using to sand file rotor 
+      - Insert Title version to crontab 
+      - Fix other bug 
+Changelog version to sand_filerotor_sid.v05r21022018
+      - Update sandlogtest 
+      - Update mutidestination tranfers log 
+      - Fix update number of suffix log file 
+      - Update extend some word to file  

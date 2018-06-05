@@ -1,0 +1,99 @@
+#!/bin/bash
+CHECK_FILE_DUPLICATE()
+
+{
+
+countexist=0
+
+CHECKDUP(){
+
+DESTFILE_PATH=${1}
+DEST_FILE=${2}
+ORG_FILE=${3}
+##########################
+if [ -n "${ORG_FILE}" ]
+  then
+   org_filename=$(basename ${ORG_FILE})
+else
+   org_filename=$(basename ${DEST_FILE})
+fi
+   dup_only_filename=$(basename ${DEST_FILE})
+
+if [ -f "${DESTFILE_PATH}/${dup_only_filename}" -a -f "${DESTFILE_PATH}/${dup_only_filename}.${CONTROL_FILE_SUFFIX}" ] && [ $(ls -ltr ${DESTFILE_PATH}/${dup_only_filename} |awk '{print $5}') -eq 0 ] && [ $( wc -l ${DESTFILE_PATH}/${dup_only_filename} |awk '{print $1}') -eq 0 ]
+   then 
+       WRITE_LOG "Found file name is empty,replace file name ${org_filename}  on ${DESTFILE_PATH} ."
+       OUTPUT_FILE=${dup_only_filename}
+       countexist=0
+       return 6 
+elif [ -f "${DESTFILE_PATH}/${dup_only_filename}" -a -f "${DESTFILE_PATH}/${dup_only_filename}.${CONTROL_FILE_SUFFIX}" ] && [ $(ls -ltr ${DESTFILE_PATH}/${dup_only_filename} |awk '{print $5}') -eq ${CDR_EMPTYSIZE} ] && [ $( wc -l ${DESTFILE_PATH}/${dup_only_filename} |awk '{print $1}') -eq ${CDR_EMPTYLINE} ]
+    then
+       WRITE_LOG "Found file name is empty,replace file name ${org_filename}  on ${DESTFILE_PATH} ."
+       OUTPUT_FILE=${dup_only_filename}
+       countexist=0
+       return 8
+
+elif [ -f "${DESTFILE_PATH}/${dup_only_filename}" -a -f "${DESTFILE_PATH}/${dup_only_filename}.${CONTROL_FILE_SUFFIX}" ]
+     then
+        countexist=$(expr ${countexist} + 1)
+        dup_only_filename=${org_filename}.${countexist}
+        WRITE_ALARM "${SOURCE_PATH} to ${DESTFILE_PATH}" "MAJOR" "File ${org_filename} Duplicate on ${DESTFILE_PATH} please check."
+        WRITE_LOG "File ${org_filename} Duplicate on ${DESTFILE_PATH} please check."
+        CHECKDUP ${DESTFILE_PATH} ${dup_only_filename} ${org_filename}
+        return 10
+else
+       OUTPUT_FILE=${dup_only_filename}
+       countexist=0
+       return 0
+fi
+ 
+}
+
+CHECKDUP_NSUFFIX(){
+
+DESTFILE_PATH=${1}
+DEST_FILE=${2}
+ORG_FILE=${3}
+
+if [ -n "${ORG_FILE}" ]
+   then
+      org_filename=$(basename ${ORG_FILE})
+ else
+     org_filename=$(basename ${DEST_FILE})
+fi
+   dup_only_filename=$(basename ${DEST_FILE})
+if [ -f "${DESTFILE_PATH}/${dup_only_filename}" ] && [ $(ls -ltr ${DESTFILE_PATH}/${dup_only_filename} |awk '{print $5}') -eq 0 ] && [ $( wc -l ${DESTFILE_PATH}/${dup_only_filename} |awk '{print $1}') -eq 0 ]
+   then
+      WRITE_LOG "Found file name is empty,replace file name ${org_filename}  on ${DESTFILE_PATH} ."
+      OUTPUT_FILE=${dup_only_filename}
+      countexist=0
+      return 6
+elif [ -f "${DESTFILE_PATH}/${dup_only_filename}" ] && [ $(ls -ltr ${DESTFILE_PATH}/${dup_only_filename} |awk '{print $5}') -eq ${CDR_EMPTYSIZE} ] && [ $( wc -l ${DESTFILE_PATH}/${dup_only_filename} |awk '{print $1}') -eq ${CDR_EMPTYLINE} ]
+      then
+      WRITE_LOG "Found file name is empty,replace file name ${org_filename}  on ${DESTFILE_PATH} ."
+      OUTPUT_FILE=${dup_only_filename}
+      countexist=0
+      return 8
+
+elif [ -f "${DESTFILE_PATH}/${dup_only_filename}" ]
+     then
+      countexist=$(expr ${countexist} + 1)
+      dup_only_filename=${org_filename}.${countexist}
+      WRITE_ALARM "${SOURCE_PATH} to ${DESTFILE_PATH}" "MAJOR" "File ${org_filename} Duplicate on ${DESTFILE_PATH} please check."
+      WRITE_LOG "File ${org_filename} Duplicate on ${DESTFILE_PATH} please check."
+      CHECKDUP_NSUFFIX ${DESTFILE_PATH} ${dup_only_filename} ${org_filename}
+      return 10
+else
+      OUTPUT_FILE=${dup_only_filename}
+      countexist=0
+      return 0
+fi
+
+}
+
+if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then
+    CHECKDUP "${1}" "${2}"
+else  
+    CHECKDUP_NSUFFIX "${1}" "${2}"
+fi
+return 
+}

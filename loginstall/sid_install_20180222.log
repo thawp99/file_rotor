@@ -1,0 +1,20 @@
+20180222:120231:Select sand file script template is "udrx.bash"
+20180222:120244:Select Sand file configure template "udrx.conf"
+20180222:120304:Post action  mode is "backup"
+20180222:120313:Not using file Prefix ..
+20180222:120314:Not using file Midfix ..
+20180222:120323:Configure script udrx.bash ..
+20180222:120323:Change Aplication name to test_extend --> Completed
+20180222:120323:Configure Source path:/eqx//af/cdr --> Completed
+20180222:120323:Configure Dest path:"/centralizedlog/cdr" --> Completed
+20180222:120324:Configure Post action --> Completed
+20180222:120324:Configure Backup path:/eqx/af/cdr/mddone --> Completed
+20180222:120324:Configure Day zip: Day--> Completed
+20180222:120324:Configure Day keep: Day--> Completed
+20180222:120324:Configure File Type --> Completed
+20180222:120324:Configure File Suffix --> Completed
+20180222:120328:Apply Scrip is "yes"
+20180222:120328:Deploy master script "test_extend.bash"--> Completed
+20180222:120329:Deploy configuration script "test_extend.conf"--> Completed
+20180222:120329:Apply Script -->Completed
+20180222:120329:Clear Sand file rotor Log --> Completed 

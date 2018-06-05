@@ -1,0 +1,266 @@
+#!/bin/bash 
+
+. /home/ec2-user/sand_filerotor/conf/main.conf
+. ${FUNCTION_PATH}/reconcile
+. ${FUNCTION_PATH}/check_file_name
+. ${FUNCTION_PATH}/CHECK_FILE_DUPLICATE_REPORT
+
+report_copy_file(){
+
+### Get input argument ###
+SOURCE_PATH=${1}        # Source path of file that you want to copy exp. /opt/sdf/log
+DEST_PATH=${2}          # Destination path that you want to put file
+FILE_PREFIX=${3}        # File name prefix that you want to copy exp. af_
+FILE_TYPE=${4}          # File type that you watn to copy exp. .stat , .cdr
+POST_ACTION=${5}        # After you success to copy from source path to destination path you can
+                        #     take action  delete or backup ,if you put 'delete' source file will remove and if
+                        #     you put 'backup' you must provide source backup path (SOURCE_BACKUP_PATH) for keep them.
+SOURCE_BACKUP_PATH=${6} # Path for keep backup file from source path after copy to destination (Relate by action backup).
+HISTORY_FILE=${7}       # if you want to check already transfered file on destination path 
+                        #    please provide HISTORY_FILE to keep transfered file name.
+
+
+######### Program start here ################
+
+WRITE_LOG "Start copy from ${SOURCE_PATH} to ${DEST_PATH}"
+
+##### CHECK PLUGIN ######
+
+if [ "${DURING_PLUGIN}" == "on" ]
+   then
+        WRITE_LOG "${DURING_PLUGIN_SCRIPT} on "
+fi 
+
+if [ "${POST_PLUGIN}" == "on" ]
+   then
+        WRITE_LOG "${POST_PLUGIN_SCRIPT} on "
+fi 
+
+if [ ! -f "${HISTORY_FILE}" ]
+  then
+    touch ${HISTORY_FILE}
+fi
+
+######### check dest path exiting ##########
+
+if [ ! -d "${DEST_PATH}" ]; 
+  then 
+       if [ -a "${FLAG_NAS_FAIL_FILE}" ];
+         then 
+		   WRITE_ALARM "${DEST_PATH}" "CRITICAL" "DEST_PATH:${DEST_PATH} can not access please check"
+           WRITE_LOG "DEST_PATH:${DEST_PATH} not found. Program exit."
+           
+       else
+
+	  WRITE_ALARM "${DEST_PATH}" "CRITICAL" "DEST_PATH:${DEST_PATH} can not access please check"
+	  touch ${FLAG_NAS_FAIL_FILE}
+	  WRITE_LOG "DEST_PATH:${DEST_PATH} not found. Program exit."
+
+       fi
+
+  else
+    if [ -a "${FLAG_NAS_FAIL_FILE}" ];
+	    then
+		  rm -f ${FLAG_NAS_FAIL_FILE}
+    fi
+	CLEAR_ALARM
+
+	######### End check dest path exiting ##########
+	
+	
+	
+		current_time_min=$(date +%M)
+		current_time_hour=$(date +%Y%m%d"_"%H)
+		expect_time=$(expr "${current_time_min}/15" |bc)
+	
+		case ${expect_time} in
+					0)      expect_time=${current_time_hour}00 ;;
+					1)      expect_time=${current_time_hour}15 ;;
+					2)      expect_time=${current_time_hour}30 ;;
+					3)      expect_time=${current_time_hour}45 ;;
+		esac
+			
+	FILE_LIST1=$(ls ${SOURCE_PATH}/*.${FILE_TYPE} 2>/dev/null|egrep -v "${INGNORE_NAME}" |grep ${expect_time}) #Edit 20130614
+	FILE_LIST2=$(find ${SOURCE_PATH}/*.${FILE_TYPE} -name "*.${FILE_TYPE}*" -mmin +${PERIOD_TIME} 2>/dev/null|egrep -v "${INGNORE_NAME}") #Edit 20130614
+	FILE_LIST=$(echo "${FILE_LIST1} ${FILE_LIST2}" |xargs -n1 |sort -u) #Edit 20130614
+	
+	
+	
+	echo "Start:$(date +%Y%m%d%H%M%S)" >> ${HISTORY_FILE}
+	COUNT_FILE=0
+	for file in ${FILE_LIST}
+	do
+	
+		SOURCE_CKSUM_NUM=$(cksum ${file} |awk '{print $1}')
+			only_filename=$(basename ${file})
+		RECORD_DETAIL=$(grep "^${only_filename}" ${HISTORY_FILE} |tail -1)
+	
+		if [ -n "${RECORD_DETAIL}" ]
+		then
+			FILE_CKSUM_NUM=$(echo ${RECORD_DETAIL} |cut -f2 -d,)
+			if [ "${FILE_CKSUM_NUM}" == "${SOURCE_CKSUM_NUM}" ]
+			then
+				WRITE_LOG "${file} already exist "
+				case ${POST_ACTION} in
+									delete) rm -f ${file}
+											WRITE_LOG "Deleted ${file} successfully"
+											;;
+									backup)
+											if [ -z "${SOURCE_BACKUP_PATH}" -o "${SOURCE_BACKUP_PATH}" == "NULL" ] 
+												then
+												WRITE_LOG "${SOURCE_BACKUP_PATH} not found please check"
+												WRITE_ALARM "${SOURCE_BACKUP_PATH}-notfound" "MAJOR" "${SOURCE_BACKUP_PATH} not found"
+												return
+											fi
+											if [ -n "${SOURCE_BACKUP_PATH}" -a "${SOURCE_BACKUP_PATH}" != "NULL" ]
+												then
+												mkdir -p ${SOURCE_BACKUP_PATH} 2>/dev/null
+											fi
+												
+												#DEST_FILE="${file}.${HOSTNAME}"
+												DEST_FILE="${file}"
+												CHECK_FILE_DUPLICATE "${SOURCE_BACKUP_PATH}" "${DEST_FILE}"
+							echo " round 1 file= ${file}, OUTPUT_FILE=${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE}"
+												cp -p ${file} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE}
+	
+	
+											if [ $? -eq 0 ]
+													then
+														echo "${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE}" >> ${BACKUP_LISTFILE_TEMP}
+														rm -f ${file}
+                                                                                                               # OUTPUT_FILE=$(echo "${OUTPUT_FILE}"| awk -F".${FILE_TYPE}" '{print $1}')  
+                                                                                                                if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then
+													        	END_FILE_NAME="${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${CONTROL_FILE_SUFFIX}"
+														        touch ${END_FILE_NAME}
+                                                                                                                fi
+														WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE} successfully"
+	
+													else
+	
+														WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE} failed"
+														WRITE_ALARM "MV-${SOURCE_BACKUP_PATH}" "MAJOR" "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE} failed"
+											fi ;;
+									*) WRITE_LOG "Post action : noaction" ;;
+						esac
+				continue
+			fi
+		fi
+	
+			DEST_FILE="${file}"
+			CHECK_FILE_DUPLICATE "${DEST_PATH}" "${DEST_FILE}" 
+	
+				#Xfilename=$(basename ${file})
+				#Xtemp_file=/tmp/${Xfilename}.tmp
+				#WRITE_HEADER "${Xtemp_file}"
+				#cat ${file} |egrep -v "${CDR_DEL_HEADER}" >> ${Xtemp_file}
+				#WRITE_FOOTER "${Xtemp_file}"
+				#mv -f ${Xtemp_file} ${file}
+	
+	
+			## Insert filtering logic here ##
+			if [ "${GEN_TAG_SWITCH}" == "on" ]
+			then
+				GEN_TAG
+				sed ${FILTER_TAG} ${file} > ${DEST_PATH}/${OUTPUT_FILE}.${FILE_TYPE}
+			else
+				cp -fp ${file} ${DEST_PATH}/${OUTPUT_FILE}.${FILE_TYPE}
+			fi
+	
+			if [ $? -eq 0 ]
+				then
+                                        #OUTPUT_FILE=$(echo "${OUTPUT_FILE}"| awk -F".${FILE_TYPE}" '{print $1}') 	
+                                        if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then
+				        	END_FILE_NAME="${DEST_PATH}/${OUTPUT_FILE}.${CONTROL_FILE_SUFFIX}"
+				        	touch ${END_FILE_NAME}
+					        chmod 777 ${END_FILE_NAME} 
+                                        fi
+
+					chmod 777 ${DEST_PATH}/${OUTPUT_FILE}.${FILE_TYPE}
+					#touch ${TEMP_END_FILE_NAME}
+                                        #touch ${END_FILE_NAME}
+			echo "${only_filename},${SOURCE_CKSUM_NUM},$(date +%Y%m%d%H%M%S)" >> ${HISTORY_FILE}
+					WRITE_LOG "Copy ${file} to ${DEST_PATH} successfully"
+			COUNT_FILE=$(expr ${COUNT_FILE} + 1)
+	
+	
+					##### DURING PLUGIN ######
+	
+					if [ "${DURING_PLUGIN}" == "on" ]
+						then
+						bash ${DURING_PLUGIN_SCRIPT} "${DEST_PATH}/${OUTPUT_FILE}.${FILE_TYPE}" "${END_FILE_NAME}"
+					fi
+	
+			#########################
+	
+		
+					case ${POST_ACTION} in
+									delete) 
+	
+						rm -f ${file}
+											WRITE_LOG "Deleted ${file} successfully"
+											;;
+									backup)
+	
+											if [ -z "${SOURCE_BACKUP_PATH}" ] 
+												then 
+												WRITE_LOG "${SOURCE_BACKUP_PATH} not found please check"
+												WRITE_ALARM "${SOURCE_BACKUP_PATH}-notfound" "MAJOR" "${SOURCE_BACKUP_PATH} not found"
+												return
+											fi
+											if [ -n "${SOURCE_BACKUP_PATH}" -a "${SOURCE_BACKUP_PATH}" != "NULL" ]
+												then
+												mkdir -p ${SOURCE_BACKUP_PATH} 2>/dev/null
+											fi
+	
+												#DEST_FILE="${file}.${HOSTNAME}"
+												DEST_FILE="${file}"
+												CHECK_FILE_DUPLICATE "${SOURCE_BACKUP_PATH}" "${DEST_FILE}"
+							echo " round 2 file= ${file}, OUTPUT_FILE=${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE}"
+												cp -p ${file} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE}
+	
+											if [ $? -eq 0 ]
+													then
+													echo "${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE}" >> ${BACKUP_LISTFILE_TEMP}
+							reconcile "${file}" "${SOURCE_BACKUP_PATH}"
+														rm -f ${file}
+                                                                                                                if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then
+														   END_FILE_NAME="${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${CONTROL_FILE_SUFFIX}"
+														   touch ${END_FILE_NAME}
+                                                                                                                fi
+														WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE} successfully"
+													else
+														WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE} failed"
+														WRITE_ALARM "MV-${SOURCE_BACKUP_PATH}" "MAJOR" "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}.${FILE_TYPE} failed"
+											fi ;;
+									*) WRITE_LOG "Post action : noaction" ;;
+					esac
+			else
+					#WRITE_LOG "Copy ${file} to ${dest_path} failed"
+					WRITE_LOG "Copy ${file} to ${DEST_PATH} failed"
+					#WRITE_ALARM "Copy-${file}" "MAJOR" "Copy ${file} to ${dest_path} failed"
+					WRITE_ALARM "Copy-${file}" "MAJOR" "Copy ${file} to ${DEST_PATH} failed"
+			#echo "${file} : sorce path to md path fail" >> ${SOURCE_PATH}/.mdfail_report
+			fi
+	done
+	
+	WRITE_LOG "Total copy from ${SOURCE_PATH} to ${DEST_PATH} : ${COUNT_FILE} "
+	
+	
+	
+	
+	echo "Stop:$(date +%Y%m%d%H%M%S)" >> ${HISTORY_FILE}
+	
+	
+	##### POST PLUGIN ######
+	
+	if [ "${POST_PLUGIN}" == "on" ]
+	then
+			${POST_PLUGIN_SCRIPT} "${DEST_PATH}"
+	fi
+	
+	###########################
+	
+	rm -f ${BACKUP_LISTFILE_TEMP}
+			
+fi	
+}

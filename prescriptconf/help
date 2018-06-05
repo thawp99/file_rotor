@@ -1,0 +1,13 @@
+######################### Help ##############################
+!! Sand file rotor For installation Linux only ..
+1) "af_onm.bash"   is template master script for manage O&M such as "afstat,aflog,afalarm,afdetail" of equinox application container 
+2) "afreport8x_centralizedlog.bash"  is template master script for manage application report tranfers source file to centralized "NAS" 
+3) "custombss.bash"  is template master script for manage O&M support "BSS" project 
+4) "customlog.bash"  is template master script for manage application log "not equinox" such as "database,ds4,sdf"
+5) "equinoxAS_onm.bash"  is template master script for manage equinoxAS platform such as "/opt/equinoxAS/log,/opt/equinoxAS/stat"
+6) "equinoxC_onm.bash" is template master script for manage equinox platform such as "/opt/equinox/log ,/opt/equinox/stat"
+7) "report8x.bash is template master script for manage application report tranfers  source file  to "MD" 
+8) "scp_custom_bss.bash" is template master script for manage data file by using "scp" protocal tranfers source file to multiple destination path support "BSS" project  
+9) "udr.bash" is template master script for manage cdr tranfers source file from "/eqx/af/cdr" to "MD" include plugin "postaction" 
+10) "udr_centralizedlog.bash" is template master script for manage cdr tranfers source file from "backcdr" to  centralized "NAS"
+#############################################################

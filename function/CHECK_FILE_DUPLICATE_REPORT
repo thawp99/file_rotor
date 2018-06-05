@@ -1,0 +1,39 @@
+#!/bin/bash
+CHECK_FILE_DUPLICATE()
+
+{
+
+countexist=0
+CHECKDUP(){
+
+   DESTFILE_PATH=${1}
+   DEST_FILE=${2}
+   ORG_FILE=${3}
+
+   if [ -n "${ORG_FILE}" ]
+     then
+        org_filename=$(basename ${ORG_FILE})
+     else
+        org_filename=$(basename ${DEST_FILE})
+   fi
+   dup_only_filename=$(basename ${DEST_FILE})
+   dup_only_filename=$(echo "${dup_only_filename}"| awk -F".${FILE_TYPE}" '{print $1}')
+   if [ -f "${DESTFILE_PATH}/${dup_only_filename}.${FILE_TYPE}" -a -f "${DESTFILE_PATH}/${dup_only_filename}.${CONTROL_FILE_SUFFIX}" ]
+       then
+           countexist=$(expr ${countexist} + 1)
+           dup_only_filename=${org_filename}.${countexist}
+           WRITE_ALARM "${SOURCE_PATH} to ${DESTFILE_PATH}" "MAJOR" "File ${org_filename} Duplicate on ${DESTFILE_PATH} please check."
+           WRITE_LOG "File ${org_filename} Duplicate on ${DESTFILE_PATH} please check."
+           CHECKDUP ${DESTFILE_PATH} ${dup_only_filename} ${org_filename}
+        else
+           OUTPUT_FILE=${dup_only_filename}
+           countexist=0
+           return 
+   fi
+ 
+  }
+
+  CHECKDUP "${1}" "${2}"
+  return 
+
+}

@@ -1,0 +1,27 @@
+reconcile(){
+#. /home/ec2-user/sand_filerotor/conf/main.conf
+#. /home/ec2-user/sand_filerotor/conf/udr.conf
+
+
+REC_PATH=${2}
+REC_FILE=${REC_PATH}/$(date +%Y%m%d).rec
+mkdir -p ${REC_PATH} 2>/dev/null &
+
+
+
+find ${REC_PATH} -name *.rec -mtime +30 |xargs -n1 rm -f
+
+
+
+if [ -n ${1} -a -f ${1} ]
+ 	then
+		datafile=${1}
+               	CSUM_FILE=$(cksum ${datafile} |awk '{print $1}')
+               	NUM_LINE=$(wc -l ${datafile} |awk '{print $1}')
+               	WRITE_LOG "${datafile} [cksum:${CSUM_FILE},record:${NUM_LINE}]"
+		data_filename=$(basename ${datafile})	
+		echo "${data_filename},${CSUM_FILE},${NUM_LINE}" >> ${REC_FILE}
+		chmod 777 ${REC_FILE}
+fi
+
+}

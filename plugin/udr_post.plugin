@@ -1,0 +1,56 @@
+#!/bin/bash
+. /home/ec2-user/sand_filerotor/conf/main.conf
+. /home/ec2-user/sand_filerotor/conf/udr.conf
+. ${FUNCTION_PATH}/WRITE_LOG
+. ${FUNCTION_PATH}/reconcile
+
+. ${ALARM_PATH}/alarm.conf
+. ${ALARM_PATH}/WRITE_ALARM
+
+MAIN_PATH=/md/cdr
+TEMP_PATH=/tmp
+
+mkdir -p ${TEMP_PATH}/ 2>/dev/null
+
+CDR_DEL_HEADER="version=|<opudr>|</opudr>|DOCTYPE"
+
+WRITE_HEADER(){
+
+echo "<?xml version='1.0'?>" > ${1}
+echo "<!DOCTYPE opudr SYSTEM 'http://10.217.46.122/DTD/opudr.dtd'>" >> ${1}
+echo "<opudr>" >> ${1}
+
+}
+
+WRITE_FOOTER(){
+
+echo "</opudr>" >> ${1}
+
+}
+
+    for file in $(ls ${MAIN_PATH}/*.${FILE_TYPE}.${HOSTNAME}*-tmp  2>/dev/null|grep -v "${CONTROL_FILE_SUFFIX}")
+      do
+            #filename=$(basename ${file} |cut -f1 -d"-")
+            filename=$(basename ${file} |sed 's/-tmp//g')
+            datafile=${MAIN_PATH}/${filename}
+            temp_file=${TEMP_PATH}/${filename}.tmp
+            WRITE_HEADER "${temp_file}"   
+            cat ${datafile} |egrep -v "${CDR_DEL_HEADER}" >> ${temp_file}
+            WRITE_FOOTER "${temp_file}"   
+            mv -f ${temp_file} ${datafile} 
+            if [ $? -eq 0 ]
+              then
+               #CSUM_FILE=$(cksum ${datafile} |awk '{print $1}')
+               #NUM_LINE=$(wc -l ${datafile} |awk '{print $1}')
+               #WRITE_LOG "Transfer ${temp_file} [cksum:${CSUM_FILE},record:${NUM_LINE}] to ${MAIN_PATH}/${VIP_NAME} successfully"
+		reconcile "${datafile}" "${DEST_PATH}"
+               WRITE_LOG "Transfer ${temp_file} to ${MAIN_PATH} successfully"
+               mv ${file} ${datafile}.${CONTROL_FILE_SUFFIX}
+			   chmod 777 ${datafile} 
+			   chmod 777 ${datafile}.${CONTROL_FILE_SUFFIX}
+              else
+               WRITE_LOG "Insert Header-Footer ${file} to MD failed"
+               WRITE_ALARM "Insert Header-Footer ${file} to MD failed"
+	       echo "${datafile} : temp path to md path fail" >> ${SOURCE_PATH}/.mdfail_report
+            fi
+      done 

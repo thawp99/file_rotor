@@ -1,0 +1,29 @@
+#!/bin/bash 
+### Function Check Filename 
+## Update By Sand TC
+## 7/10/2016 Update function chek file name for check date and make directory  
+
+check_file_name(){
+FILE="$1"
+AWK_COUNT=0
+regex='([2][0][1-9][0-9][0-9][0-9][0-9][0-9])'
+while :
+do 
+  AWK_COUNT=$(expr ${AWK_COUNT} + 1 )
+  PATTERN=$(echo ${FILE} |awk -F"_" '{print $'$AWK_COUNT'}')
+
+  if [[ ${PATTERN} =~ $regex ]]
+    then
+       DATE_PATH=$(echo ${PATTERN}| cut -c1-8)
+       return 0
+       break
+   fi 
+   if [ -z ${PATTERN} ]
+    then 
+       DATE_PATH="NO_DATE"
+       return 1
+       break 
+   fi
+done  
+}
+

@@ -1,0 +1,65 @@
+
+CLEAR_ALARM()
+{
+
+     CURRENT_DATE_TIME="$(date +%Y%m%d:%H%M%S)"
+     KEY="#<DELAYSENDTIME"
+     SEND=NO
+
+
+      . ${ALARM_CONFIG_FILE} 
+
+
+
+      CLEAR_WRITE_ALARM(){
+      STAMP_TIME=$(date +%d%m%Y%H%M%S)
+      echo "${ALARM_SYSTEM_NAME}|${HOSTNAME}|${LOCATION}|${ALARM_ID}|${SEVERITY}|${DESC}|${STAMP_TIME}|None|UOSS SYSTEM" >> ${ALARM_FILE}
+       }
+
+
+      STAMP_ALARM_TEMP_FILE=${ALARM_STAMP_FILE}.tmp
+      STAMP_ALARM_FLAG_FILE=${ALARM_STAMP_FILE}.flag
+
+  
+      if [ -f "${ALARM_STAMP_FILE}" ]
+         then 
+           UPDATE_FLAG=0
+           ####### Found error and found alarm stamp file ##########
+           count=1
+           cat ${ALARM_STAMP_FILE} |while read line
+            do
+               REF_SEVERITY=$(echo ${line} |cut -f1 -d"|")
+               REF_ALARMID=$(echo ${line} |cut -f2 -d"|")
+               REF_RANDOM_DIGIT=$(echo ${line} |cut -f3 -d"|")
+               REF_MAPPING=$(echo ${line} |cut -f4 -d"|")
+               LOCATION=${REF_MAPPING}
+               REF_DATE_TIME=$(echo ${line} |cut -f5 -d"|")
+               REF_DESC=$(echo ${line} |cut -f6 -d"|") 
+
+               REF_ALARM_ID=$(echo ${REF_ALARMID} |cut -c5-8)
+               #DELAY_TIME=$(cat ${ALARM_ID_FILE} |grep "^${REF_ALARM_ID}," |cut -f4 -d, |head -1)
+
+               cd ${ALARM_PATH}
+               DIFF_MIN=$(java GetTime "${REF_DATE_TIME}" "${CURRENT_DATE_TIME}")
+               if [ ${DIFF_MIN} -gt ${DELAY_TIME} ]
+                   then
+                      SEVERITY="${DEFAULT_SEVERITY}"
+                      DESC="${REF_MAPPING} ${REF_DESC}"
+                      CLEAR_WRITE_ALARM "${REF_ALARMID}" "${SEVERITY}" "${DESC}" "${LOCATION}"
+                      #writelog "${ALARM_NAME} running : Alarm_ID ${ALARM_CLEAR} ${REF_DESC} : SEVERITY ${SEVERITY} : SENDALARM YES"
+                   else
+                      #### keep existing error ####
+                      echo "${REF_SEVERITY}|${REF_ALARMID}|${REF_RANDOM_DIGIT}|${REF_MAPPING}|${REF_DATE_TIME}|${REF_DESC}" >> ${STAMP_ALARM_TEMP_FILE}  
+               fi
+ 
+           done
+      fi
+
+rm -f ${ALARM_STAMP_FILE}
+rm -f ${STAMP_ALARM_FLAG_FILE}
+if [ -f "${STAMP_ALARM_TEMP_FILE}" ]
+   then
+    mv -f ${STAMP_ALARM_TEMP_FILE} ${ALARM_STAMP_FILE}    
+fi
+}
+#CLEAR_ALARM "${1}"

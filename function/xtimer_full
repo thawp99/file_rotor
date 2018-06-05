@@ -1,0 +1,261 @@
+#!/bin/bash
+############################################################################
+# Script name : timer
+# Description : For count date inc or dec day.
+#             : example . timer -10 , timer +10
+# Create date : 020405
+# Last modifly: 020405  
+# Create by   : Siwanat Ponkhun
+# IMO-IT Management Operation
+# G-ABLE COMPANY
+# http://www.g-able.com
+########################## START DEC ######################################## 
+
+
+DEC() 
+{
+
+TODAY=$(date +%d)
+TOMONTH=$(date +%m)
+TOMONTH=$(echo ${TOMONTH} |cut -c1-2)
+TOYEAR_FULL=$(date +%Y)
+TOYEAR_HALF=$(echo ${TOYEAR_FULL} |cut -c3-4)
+
+if [ -z "$1" -o "$1" = "0" -o "$1" = "00" -o "$1" = "000" ]
+   then
+      WC_MONTH=$(echo ${TOMONTH} |wc -c)
+      if [ ${TOMONTH} -lt 10 -a ${WC_MONTH} -eq 2 ]
+         then
+           TOMONTH="0${TOMONTH}"
+         else
+           TOMONTH=${TOMONTH}
+      fi
+      TODATE="${TOYEAR_FULL}${TOMONTH}${TODAY}"
+      echo "${TODATE}"
+   else
+
+
+MONTH_PROC()
+{ 
+case ${1} in
+    1|01) MONTH_NUM=31 ;;
+    2|02) if [ $(expr ${2} % 4) -eq 0 ]
+           then
+              MONTH_NUM=29
+           else
+              MONTH_NUM=28
+        fi
+        ;;
+    3|03) MONTH_NUM=31 ;;
+    4|04) MONTH_NUM=30 ;;
+    5|05) MONTH_NUM=31 ;;
+    6|06) MONTH_NUM=30 ;;
+    7|07) MONTH_NUM=31 ;;
+    8|08) MONTH_NUM=31 ;;
+    9|09) MONTH_NUM=30 ;;
+    10) MONTH_NUM=31 ;;
+    11) MONTH_NUM=30 ;;
+    12) MONTH_NUM=31 ;;
+esac
+}
+
+### start ###
+
+CURRENT_DATE="$1"
+if [ ${CURRENT_DATE} -eq ${TODAY} ]
+   then
+           if [ ${TOMONTH} -eq 1 ]
+              then
+                 TOMONTH=12
+                 TOYEAR_FULL="$(expr ${TOYEAR_FULL} - 1)"
+              else
+                 TOMONTH="$(expr ${TOMONTH} - 1)"
+           fi
+
+      MONTH_PROC ${TOMONTH} ${TOYEAR_FULL}
+      TODAY="${MONTH_NUM}"
+
+elif [ ${CURRENT_DATE} -lt ${TODAY} ]
+   then
+      TODAY="$(expr ${TODAY} - ${CURRENT_DATE})" 
+
+else
+     CURRENT_DATE="$(expr ${CURRENT_DATE} - ${TODAY})" 
+     if [ ${TOMONTH} -eq 1 ]
+        then
+           TOMONTH=12
+           TOYEAR_FULL="$(expr ${TOYEAR_FULL} - 1)"
+        else
+           TOMONTH="$(expr ${TOMONTH} - 1)"
+     fi
+
+   while [ ${CURRENT_DATE} -ne 0 ]
+      do
+      MONTH_PROC ${TOMONTH} ${TOYEAR_FULL}
+      if [ ${CURRENT_DATE} -gt ${MONTH_NUM} ]
+        then
+           CURRENT_DATE=$(expr ${CURRENT_DATE} - ${MONTH_NUM})
+           if [ ${TOMONTH} -eq 1 ]
+              then
+                 TOMONTH=12
+                 TOYEAR_FULL="$(expr ${TOYEAR_FULL} - 1)"
+              else
+                 TOMONTH="$(expr ${TOMONTH} - 1)"
+           fi
+
+           MONTH_PROC ${TOMONTH} ${TOYEAR_FULL}
+
+        elif [ ${CURRENT_DATE} -eq ${MONTH_NUM} ]
+             then
+                if [ ${TOMONTH} -eq 1 ]
+                   then
+                      TOMONTH=12
+                      TOYEAR_FULL="$(expr ${TOYEAR_FULL} - 1)"
+                   else
+                      TOMONTH="$(expr ${TOMONTH} - 1)"
+                fi
+                MONTH_PROC ${TOMONTH} ${TOYEAR_FULL}
+                TODAY="${MONTH_NUM}"
+                CURRENT_DATE=0
+
+        else
+           TODAY="$(expr ${MONTH_NUM} - ${CURRENT_DATE})"
+           CURRENT_DATE=0
+     fi
+   done
+fi
+if [ ${TODAY} -lt 10 ]
+   then
+      TODAY="0${TODAY}"
+fi
+WC_MONTH=$(echo ${TOMONTH} |wc -c)
+if [ ${TOMONTH} -lt 10 -a ${WC_MONTH} -eq 2 ]
+   then
+      TOMONTH="0${TOMONTH}"
+fi
+TOYEAR_HALF=$(echo ${TOYEAR_FULL} |cut -c3-4)
+TO_DATE="${TOYEAR_FULL}${TOMONTH}${TODAY}"
+echo "$TO_DATE"
+### stop dec ###
+fi
+
+}
+
+########################## STOP DEC ######################################## 
+
+########################## START INC ######################################## 
+
+INC()
+{
+
+TODAY=$(date +%d)
+TOMONTH=$(date +%m)
+TOMONTH=$(echo ${TOMONTH} |cut -c1-2)
+TOYEAR_FULL=$(date +%Y)
+TOYEAR_HALF=$(echo ${TOYEAR_FULL} |cut -c3-4)
+
+if [ -z "$1" -o "$1" = "0" -o "$1" = "00" -o "$1" = "000" ]
+   then
+      WC_MONTH=$(echo ${TOMONTH} |wc -c)
+      if [ ${TOMONTH} -lt 10 -a ${WC_MONTH} -eq 2 ]
+         then
+           TOMONTH="${TOMONTH}"
+      fi
+      TODATE="${TOYEAR_FULL}${TOMONTH}${TODAY}"
+      echo "${TODATE}"
+   else
+
+
+MONTH_PROC()
+{ 
+case ${1} in
+    1|01) MONTH_NUM=31 ;;
+    2|02) if [ $(expr ${2} % 4) -eq 0 ]
+           then
+              MONTH_NUM=29
+           else
+              MONTH_NUM=28
+        fi
+        ;;
+    3|03) MONTH_NUM=31 ;;
+    4|04) MONTH_NUM=30 ;;
+    5|05) MONTH_NUM=31 ;;
+    6|06) MONTH_NUM=30 ;;
+    7|07) MONTH_NUM=31 ;;
+    8|08) MONTH_NUM=31 ;;
+    9|09) MONTH_NUM=30 ;;
+    10) MONTH_NUM=31 ;;
+    11) MONTH_NUM=30 ;;
+    12) MONTH_NUM=31 ;;
+esac
+}
+
+### start inc ###
+      ARG=$1
+      CURRENT_DATE=$1
+      MONTH_PROC ${TOMONTH} ${TOYEAR_FULL}
+      CURRENT_DATE=$(expr ${CURRENT_DATE} + ${TODAY})
+      CURRENT_DAY=$(expr ${MONTH_NUM} - ${TODAY})
+
+if [ ${CURRENT_DATE} -le ${MONTH_NUM} ]
+   then
+     TODAY=$(expr ${TODAY} + ${ARG})
+   else
+     CURRENT_DAY=$(expr ${MONTH_NUM} - ${TODAY})
+   while [ ${CURRENT_DATE} -gt ${MONTH_NUM} ]
+     do
+     CURRENT_DATE=$(expr ${CURRENT_DATE} - ${MONTH_NUM})
+     TODAY=${CURRENT_DATE}
+     if [ ${TOMONTH} -eq 12 ]
+         then
+            TOMONTH=1
+            TOYEAR_FULL=$(expr ${TOYEAR_FULL} + 1)
+            MONTH_PROC ${TOMONTH} ${YEAR_FULL}
+         else
+            TOMONTH=$(expr ${TOMONTH} + 1)
+            MONTH_PROC ${TOMONTH} ${TOYEAR_FULL}
+     fi
+    done
+fi
+
+
+if [ ${TODAY} -lt 10 ]
+   then
+      TODAY="0${TODAY}"
+fi
+WC_MONTH=$(echo ${TOMONTH} |wc -c)
+if [ ${TOMONTH} -lt 10 -a ${WC_MONTH} -eq 2 ]
+   then
+      TOMONTH="0${TOMONTH}"
+fi
+
+TOYEAR_HALF=$(echo ${TOYEAR_FULL} |cut -c3-4)
+TO_DATE="${TOYEAR_FULL}${TOMONTH}${TODAY}"
+echo "$TO_DATE"
+
+### stop inc ###
+fi
+
+}
+########################## STOP INC ################################### 
+
+########################## START PROGRAM ##############################
+
+if [ -z "$1" -o "$1" = "0" -o "$1" = "00" -o "$1" = "000" ]
+   then
+      INC
+   else
+TYPE=$(echo $1 |cut -c1)
+MINUS=$(echo $1 |cut -f2 -d"-")
+PLUS=$(echo $1 |cut -f2 -d"+")
+if [ "${TYPE}" = "-" ]
+    then  
+       DEC ${MINUS}
+elif [ "${TYPE}" = "+" ]
+    then  
+       INC ${PLUS}
+fi
+fi
+########################## END PROGRAM ##############################
+
+

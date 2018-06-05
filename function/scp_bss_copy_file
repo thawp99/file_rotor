@@ -1,0 +1,669 @@
+#!/bin/bash 
+############################################
+#This function build for BSS project       #
+#Build date 28/08/2017 By Sid deploy team  #
+#Support Thawp175                          #
+############################################
+
+. /home/ec2-user/sand_filerotor/conf/main.conf
+. ${FUNCTION_PATH}/reconcile
+. ${FUNCTION_PATH}/check_file_name
+. ${FUNCTION_PATH}/CHECK_FILE_DUPLICATE
+SCRIPT_PATH=/home/ec2-user/sand_filerotor
+scp_bss_copy_file(){
+
+### Get input argument ###
+SOURCE_PATH=${1}        # Source path of file that you want to copy exp. /opt/sdf/log
+DEST_PATH=${2}
+FILE_PREFIX=${3}        # File name prefix that you want to copy exp. af_
+FILE_TYPE=${4}          # File type that you watn to copy exp. .stat , .cdr
+POST_ACTION=${5}        # After you success to copy from source path to destination path you can
+SOURCE_BACKUP_PATH=${6} # Path for keep backup file from source path after copy to destination (Relate by action backup).
+HISTORY_FILE=${7}       # if you want to check already transfered file on destination path 
+
+######### Program start here ################
+
+#WRITE_LOG "Start copy from ${SOURCE_PATH} to ${DEST_PATH}"
+FCK=()
+DCK=()
+NUMBERLIST=0
+FILE_LIST=()
+FCOUNT=0
+DCOUNT=0
+CKRET=0
+FILECOUNT=0
+FILELISTTEMP=${SCRIPT_PATH}/temp/$$_file_list.tmp
+COUNT_FILE=0
+COUNT_UNFILE=0
+COUNT_FDATE=0
+CKDATE="[2][0][0-9]{2}[0-9]{2}[0-9]{2}[0-9]{6}"
+DELIMCK=0
+
+##### CHECK PLUGIN ######
+
+if [ "${DURING_PLUGIN}" == "on" ]
+   then
+        WRITE_LOG "${DURING_PLUGIN_SCRIPT} on "
+fi 
+
+if [ "${POST_PLUGIN}" == "on" ]
+   then
+        WRITE_LOG "${POST_PLUGIN_SCRIPT} on "
+fi 
+
+if [ ! -f "${HISTORY_FILE}" ]
+  then
+    touch ${HISTORY_FILE}
+fi
+
+check_nas(){
+NASIP=${1}
+mount -l |grep "${NASIP}" -q 
+ if [ $? -ne 0 ];then 
+    WRITE_ALARM "Source NAS mount point to ${NASIP} not found" "CRITICAL" " NAS not found"   
+    exit 100
+ fi
+}
+
+scpto(){
+  USER=${1}
+  IP=${2}
+  FILE=${3}
+  DEST=${4}
+  scp -o PasswordAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${FILE} ${USER}@${IP}:${DEST} 2>/dev/null
+  if [ $? -eq 0 ];then 
+    return 0
+  else 
+   return 1
+  fi
+}
+
+sshto(){
+  USER=${1}
+  IP=${2}
+  COMMAND=${3}
+  ssh -t -o PasswordAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${USER}@${IP} "${COMMAND}" 2>/dev/null
+  if [ $? -eq 0 ];then 
+   return 0 
+  else 
+   return 1
+  fi
+}
+
+check_dim(){
+    CKDIM=()
+    DIMC=0
+    for delimck in $(find ${SOURCE_PATH}/${FILE_PREFIX}*${FILE_MIDFIX}*.${FILE_TYPE} -mmin +${FILEPRERIOD} 2>/dev/null|awk '{print $NF}' |grep -E ${CKDATE} 2>/dev/null|head -n 1 |egrep -v "${INGNORE_NAME}")
+      do
+         AWK_COUNT=0
+          regex='([2][0][1-9][0-9][0-9][0-9][0-9][0-9])'
+       while :
+           do
+            AWK_COUNT=$(expr ${AWK_COUNT} + 1 )
+            PATTERN=$(echo ${delimck} |awk -F"_" '{print $'$AWK_COUNT'}')
+            if [[ ${PATTERN} =~ $regex ]]
+               then
+                 ((DIMC ++))
+                 CKDIM[${DIMC}]=${AWK_COUNT}
+                 break
+            fi
+            if [ -z ${PATTERN} ]
+              then
+                break
+            fi
+          done
+      done
+
+    for dimck in ${CKDIM[@]}
+       do
+         if [ ${dimck} -eq ${AWK_COUNT} ] ;then
+               DELIMCK=${AWK_COUNT}
+               continue
+         else
+               exit 100
+         fi
+   done
+}
+
+### Check nas ###
+check_nas "${NASIP}"
+################
+
+#if [ ${DATE_FLAG} == "ON" ] ;then
+#    WRITE_LOG "Enable date flag is \"ON\""
+#    check_dim
+#    if [ ${DELIMCK} -eq 0 ];then
+#      exit 100
+#    else 
+#      find ${SOURCE_PATH}/${FILE_PREFIX}*${FILE_MIDFIX}*.${FILE_TYPE} -mmin +${FILEPRERIOD} 2>/dev/null| grep -E ${CKDATE} 2>/dev/null |sort -t"_" -k${DELIMCK} |awk '{print $NF}'|head -${NUMBERFILE}|egrep -v "${INGNORE_NAME}" > ${FILELISTTEMP}
+#    fi
+#  elif [ ${DATE_FLAG} == "OFF" ] ;then 
+#    WRITE_LOG "Enable date flag is \"OFF\""
+#    find ${SOURCE_PATH}/${FILE_PREFIX}*${FILE_MIDFIX}*.${FILE_TYPE} -mmin +${FILEPRERIOD} 2>/dev/null|awk '{print $NF}'|head -${NUMBERFILE}|egrep -v "${INGNORE_NAME}" > ${FILELISTTEMP}
+#fi
+
+if [ "${ENABLECONTROL_SOURCE_FILE}" == "OFF" ] || [ "${ENABLECONTROL_SOURCE_FILE}" == "" ]
+  then
+     if [ ${DATE_FLAG} == "ON" ] ;then
+       WRITE_LOG "Enable date flag is \"ON\""
+       check_dim
+         if [ ${DELIMCK} -eq 0 ];then
+           exit 100
+         else
+           find ${SOURCE_PATH}/${FILE_PREFIX}*${FILE_MIDFIX}*.${FILE_TYPE} -mmin +${FILEPRERIOD} 2>/dev/null| grep -E ${CKDATE} 2>/dev/null |sort -t"_" -k${DELIMCK} |awk '{print $NF}'|head -${NUMBERFILE}|egrep -v "${INGNORE_NAME}" > ${FILELISTTEMP}
+         fi
+     elif [ ${DATE_FLAG} == "OFF" ] ;then
+        WRITE_LOG "Enable date flag is \"OFF\""
+        find ${SOURCE_PATH}/${FILE_PREFIX}*${FILE_MIDFIX}*.${FILE_TYPE} -mmin +${FILEPRERIOD} 2>/dev/null|awk '{print $NF}'|head -${NUMBERFILE}|egrep -v "${INGNORE_NAME}" > ${FILELISTTEMP}
+      fi
+elif [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ]
+   then
+     WRITE_LOG "Enable Control source is \"ON\""
+     if [ ${DATE_FLAG} == "ON" ] ;then
+         WRITE_LOG "Enable date flag is \"ON\""
+         check_dim
+         if [ ${DELIMCK} -eq 0 ];then
+           exit 100
+         else
+            find ${SOURCE_PATH}/${FILE_PREFIX}*${FILE_MIDFIX}*.${CONTROL_SOURCE_FILE}  2>/dev/null| grep -E ${CKDATE} 2>/dev/null |sort -t"_" -k${DELIMCK} |awk '{print $NF}'|head -${NUMBERFILE}|egrep -v "${INGNORE_NAME}" |while read file ;do
+         fileck=${file%%.${CONTROL_SOURCE_FILE}}.${FILE_TYPE}
+              if [ -f ${fileck}  -a -f ${file} ]
+                then
+                   echo "${fileck}" >> ${FILELISTTEMP}
+               fi
+             done
+          fi
+     elif [ ${DATE_FLAG} == "OFF" ]
+       then
+          WRITE_LOG "Enable date flag is \"OFF\""
+          find ${SOURCE_PATH}/${FILE_PREFIX}*${FILE_MIDFIX}*.${CONTROL_SOURCE_FILE}  2>/dev/null|awk '{print $NF}'|head -${NUMBERFILE}|egrep -v "${INGNORE_NAME}"|while read file ;do
+          fileck=${file%%.${CONTROL_SOURCE_FILE}}.${FILE_TYPE}
+            if [ -f ${fileck}  -a -f ${file} ]
+               then
+                 echo "${fileck}" >> ${FILELISTTEMP}
+            fi
+           done
+        fi
+fi
+
+
+echo "Start:$(date +%Y%m%d%H%M%S)" >> ${HISTORY_FILE}
+if [ ${DATE_FLAG} == "ON" ] ;then
+    for file in $(cat ${FILELISTTEMP} 2>/dev/null)
+      do
+          NUMBERF=$(wc -l ${file}|awk '{print $1}') 
+          if [ ${NUMBERF} -gt ${FILE_ROW} ] ;then 
+             if [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ]
+               then
+                 fileck=${file%%.${FILE_TYPE}}.${CONTROL_SOURCE_FILE}
+                 cp -p ${file} ${SOURCE_FILTER_PATH} 2>/dev/null
+                 CKF1=$?
+                 cp -p ${fileck} ${SOURCE_FILTER_PATH} 2>/dev/null
+                 CKF2=$?
+                 if [ ${CKF1} -eq 0 -a ${CKF2} -eq 0 ];then
+                    WRITE_LOG "${file} is incorrect number of row ,move file to \"${SOURCE_FILTER_PATH}\" successfully"
+                    rm ${file}
+                    rm ${fileck}
+                    ((COUNT_FILE ++))
+                     continue
+                  fi
+             else
+                  cp -p ${file} ${SOURCE_FILTER_PATH} 2>/dev/null
+                  CKF1=$?
+                  if [ ${CKF1} -eq 0 ];then
+                    WRITE_LOG "${file} is incorrect number of row ,move file to \"${SOURCE_FILTER_PATH}\" successfully"
+                    rm ${file}
+                    ((COUNT_FILE ++))
+                     continue
+                  fi
+          fi
+
+          check_file_name "${file}"
+          if [ $? -ne 0 ] ;then 
+            if [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ]
+               then
+                 fileck=${file%%.${FILE_TYPE}}.${CONTROL_SOURCE_FILE}
+                 cp -p ${file} ${SOURCE_FILTER_PATH} 2>/dev/null
+                 CKF1=$?
+                 cp -p ${fileck} ${SOURCE_FILTER_PATH} 2>/dev/null
+                 CKF2=$?
+                 if [ ${CKF1} -eq 0 -a ${CKF2} -eq 0 ];then
+                     WRITE_LOG "${file} is incorrect format of file,move file to \"${SOURCE_FILTER_PATH}\" successfully"
+                     rm ${file}
+                     rm ${fileck}
+                    ((COUNT_FILE ++))
+                    continue
+                 fi
+              else
+                cp -p ${file} ${SOURCE_FILTER_PATH} 2>/dev/null
+                CKF1=$?
+                if [ ${CKF1} -eq 0 ];then
+                   WRITE_LOG "${file} is incorrect format of file,move file to \"${SOURCE_FILTER_PATH}\" successfully"
+                   rm ${file}
+                   ((COUNT_FILE ++))
+                  continue
+                 fi
+              fi
+         else 
+             if [ ${DATE_FLAG} == "ON" ] ;then 
+                FILENAME=$(echo ${file}|awk -F"/" '{print $NF}')
+                TIME1=$(echo ${FILENAME}|awk -F"${DATE_PATH}" '{print $2}'|awk -F. '{print $1}')
+                TIME1=${TIME1%%_*}
+                TIME1=$(echo ${TIME1}| awk '{ print substr($0,1,2)":"substr($0,3,2)":"substr($0,5,2) }')  
+                SEC1=$(date -d "${DATE_PATH} ${TIME1}" +%s)
+                SEC2=$(date +%s -d $(date +%H:%M:%S))
+                DIFFSEC=$((${SEC2} - ${SEC1}))
+                if [ ${SEC1} -gt ${SEC2} ];then 
+                  MODF=$(echo "${file}"|sed 's/\//\\\//g') 
+                  sed -i "/${MODF}/d " ${FILELISTTEMP}
+                   if [ $? -eq 0 ];then 
+                     ((COUNT_FDATE ++))
+                   fi  
+                 fi
+             fi
+         fi
+     fi
+     done 
+   if [ ${COUNT_FILE} -ne 0 ];then
+   WRITE_LOG "Total move file from ${SOURCE_PATH} to ${SOURCE_FILTER_PATH}:${COUNT_FILE} "
+   COUNT_FILE=0
+   fi
+ 
+   if [ ${COUNT_FDATE} -ne 0 ];then 
+     WRITE_LOG "Total Ignore file from ${SOURCE_PATH} :${COUNT_FDATE} "
+     COUNT_FDATE=0
+   fi
+fi
+
+## Check file list ## 
+for file in $(cat ${FILELISTTEMP} 2>/dev/null)
+ do
+   if [ ! -f ${file} ];then
+          continue
+    else  
+       ((NUMBERLIST ++))
+       FILE_LIST[${NUMBERLIST}]="${file}"
+   fi
+done
+
+#####################
+for DEST in ${DEST_PATH[@]}
+  do
+   IP=$(echo ${DEST}|awk -F"|" '{print $1}') 
+   DESTREMOTE=$(echo ${DEST}|awk -F"|" '{print $2}') 
+   DESTREBACK=$(echo ${DEST}|awk -F"|" '{print $3}') 
+   for file in ${FILE_LIST[@]}
+      do
+        ((FCOUNT ++))
+        DEST_FILE="${file}"
+        WRITE_LOG "Start copy from ${SOURCE_PATH} to ${IP}:${DESTREMOTE}"
+        SOURCE_CKSUM_NUM=$(cksum ${file} 2>/dev/null|awk '{print $1}' )
+        only_filename=$(basename ${file})
+        RECORD_DETAIL=$(grep -w "${only_filename}" ${HISTORY_FILE}|grep "${IP}:${DESTREMOTE}" |tail -1)
+        if [ "${RECORD_DETAIL}" != "" ];then 
+           FILE_CKSUM_NUM=$(echo ${RECORD_DETAIL} |cut -f3 -d,)
+           if [ "${FILE_CKSUM_NUM}" == "${SOURCE_CKSUM_NUM}" ]
+              then
+                  WRITE_LOG "${file} already exist on ${IP}:${DESTREMOTE}"
+                  continue
+          fi
+          #continue
+        fi
+        
+        ## Check file sync ###
+        if [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ];then
+         fileck=${file%%.${FILE_TYPE}}.${CONTROL_SOURCE_FILE}
+         OUTPUT_FILECK=${DATE_PATH}/$(basename ${fileck})
+         if [ ! -f ${fileck} -a  -f ${file} ]
+             then
+                WRITE_ALARM "Source File Not Sync" "MAJOR" "File ${file} Not Sync "
+                cp -fp ${file} ${SOURCE_UNSYNC_PATH} 2>/dev/null
+                (( COUNT_UNFILE ++ ))
+                CKF1=$?
+                continue 
+         elif [ -f ${fileck} -a  ! -f ${file} ] 
+             then 
+               WRITE_ALARM "Source File Not Sync" "MAJOR" "File ${file} Not Sync "
+                cp -fp ${fileck} ${SOURCE_UNSYNC_PATH} 2>/dev/null
+                (( COUNT_UNFILE ++ ))
+                CKF1=$?
+                continue  
+         elif  [ ! -f ${fileck} -a  ! -f ${file} ] 
+             then
+                WRITE_ALARM "Source File Not Sync" "MAJOR" "File ${file} Not Sync "
+                (( COUNT_UNFILE ++ ))
+                continue
+         fi
+       fi
+        #CHECK_FILE_DUPLICATE "${DEST}" "${DEST_FILE}"
+        OUTPUT_FILE=${only_filename}
+        CKDESTFILE=$(sshto "toro" "${IP}" "if [ -f ${DESTREMOTE}/${OUTPUT_FILE} ];then echo "FOUND" ;else echo "NOTFOUND" ;fi" |tr -d '\r')
+        if [ "${CKDESTFILE}" == "FOUND" ] && [ $? -eq 0 ];then 
+           sshto "toro" "${IP}" "mv ${DESTREMOTE}/${OUTPUT_FILE} ${DESTREBACK}/${OUTPUT_FILE}_$(date +%Y%m%d%H%M%S).bak"
+           if [ $? -eq 0 ];then 
+              WRITE_LOG "Backup Remote Destination Path to ${IP}:${DESTREBACK} successfully"
+           else 
+              WRITE_LOG "Backup Remote Destination Path to ${IP}:${DESTREBACK} failed,Please check"
+              WRITE_ALARM "Backup Remote to ${IP}" "MAJOR" "Backup Remote to ${IP}:${DESTREBACK} Failed "
+              continue
+          fi
+        fi
+        if [ "${ENABLE_DATE}" == "ON" ];then
+               sshto "toro" "${IP}" "if [ ! -d ${DATE_PATH} ];then mkdir -p ${DATE_PATH}  ;fi"
+               OUTPUT_FILE=${DATE_PATH}/${OUTPUT_FILE}
+               scpto "toro" "${IP}" "${file}" "${DESTREMOTE}/${OUTPUT_FILE}" 2>/dev/null
+         else 
+              
+               scpto "toro" "${IP}" "${file}" "${DESTREMOTE}/${OUTPUT_FILE}" 2>/dev/null
+        fi
+        if [ $? -eq 0 ]
+          then
+            FCK[${FCOUNT}]=0
+            if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then 
+               END_FILE_NAME="${DESTREMOTE}/${OUTPUT_FILE}.${CONTROL_FILE_SUFFIX}"
+               sshto "toro" "${IP}" "touch ${END_FILE_NAME};chmod 777 ${END_FILE_NAME}"
+            fi
+            if [ $? -eq 0 ];then 
+              sshto "toro" "${IP}" "chmod 777 ${DESTREMOTE}/${OUTPUT_FILE}"
+              echo "${IP}:${DESTREMOTE},${only_filename},${SOURCE_CKSUM_NUM},$(date +%Y%m%d%H%M%S)" >> ${HISTORY_FILE}
+              WRITE_LOG "Copy ${file} to ${IP}:${DESTREMOTE}/${OUTPUT_FILE} successfully"
+              COUNT_FILE=$(expr ${COUNT_FILE} + 1)
+            fi
+       else 
+         WRITE_LOG "Copy ${file} to ${OUTPUT_FILE} failed"
+         WRITE_ALARM "Copy to Remote ${IP}" "MAJOR" "Copy to Remote ${IP}:${DESTREBACK} Failed "
+         FCK[${FCOUNT}]=1
+       fi
+    done
+ 
+ WRITE_LOG "Total copy from ${SOURCE_PATH} to ${IP}:${DESTREMOTE}/${OUTPUT_FILE} :${COUNT_FILE} "
+ COUNT_FILE=0
+
+  for CKFILE in ${FCK[@]}
+      do
+       if [ ${CKFILE} -eq 0 ]
+        then
+         ((CKRET ++))
+         continue
+      else
+        break
+       fi
+  done
+   ((DCOUNT ++))
+  if [ ${CKRET} -le ${NUMBERFILE} ] 
+   then
+    DCK[${DCOUNT}]=0
+   else 
+    DCK[${DCOUNT}]=1 
+  fi
+  CKRET=0
+  FCK=()
+done
+
+### End loop file ### 
+for CKDEST in ${DCK[@]}
+      do
+       if [ ${CKDEST} -eq 0 ]
+        then
+         ((CKRET ++))
+         continue
+      else
+        break
+       fi
+      done
+
+## Check Post Action ## 
+for file in ${FILE_LIST[@]}
+  do
+    if [ ${#DCK[@]} -eq ${CKRET} ]
+      then
+        case ${POST_ACTION} in
+          delete)
+            if [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ]
+                 then
+                  fileck=${file%%.${FILE_TYPE}}.${CONTROL_SOURCE_FILE}
+                  if [ -f ${fileck} -a  -f ${file} ]
+                     then
+                      rm -f ${file}
+                      CKF1=$?
+                      rm -f ${fileck}
+                      CKF2=$?
+                  fi
+             else
+                 rm -f ${file}
+                 CKF1=$?
+             fi
+            if [ ${CKF1} -eq 0 ];then
+               WRITE_LOG "Deleted ${file} successfully"
+               ((COUNT_FILE ++))
+            elif [  ${CKF1} -eq 0 -a  ${CKF2} -eq 0 ]
+               then
+                WRITE_LOG "Deleted ${file} successfully"
+               ((COUNT_FILE ++))
+            fi
+          ;;
+         backup)
+            if [ -z "${SOURCE_BACKUP_PATH}" ]
+              then
+                WRITE_LOG "${SOURCE_BACKUP_PATH} not found please check"
+                WRITE_ALARM "${SOURCE_BACKUP_PATH}-notfound" "MAJOR" "${SOURCE_BACKUP_PATH} not found"
+                return
+            fi
+            if [ -n "${SOURCE_BACKUP_PATH}" -a "${SOURCE_BACKUP_PATH}" != "NULL" ]
+               then
+                mkdir -p ${SOURCE_BACKUP_PATH} 2>/dev/null
+            fi
+            DEST_FILE="${file}"
+            check_file_name "${file}"
+            if [ "${ENABLE_DATE_BAK}" == "ON" ];then 
+                if [ -z ${DATE_PATH} ] || [ "${DATE_PATH}" == "" ]||[ "${DATE_PATH}" == "NO_DATE" ];then
+                   DATE_PATH=$(date +%Y%m%d)
+                fi
+                if [ ! -d ${SOURCE_BACKUP_PATH}/${DATE_PATH} ];then
+                   mkdir -p ${SOURCE_BACKUP_PATH}/${DATE_PATH}
+                 fi
+                CHECK_FILE_DUPLICATE "${SOURCE_BACKUP_PATH}/${DATE_PATH}" "${DEST_FILE}"
+                if [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ];then
+                  OUTPUT_FILE=${DATE_PATH}/${OUTPUT_FILE}_$(date +%Y%m%d%H%M%S).bak
+                  fileck=${file%%.${FILE_TYPE}}.${CONTROL_SOURCE_FILE}
+                  OUTPUT_FILECK=$(basename ${fileck})
+                   if [ -f ${fileck} -a  -f ${file} ];then
+                     cp -p ${file} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} 2>/dev/null
+                     CKF1=$?
+                     cp -p ${fileck} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILECK} 2>/dev/null
+                     CKF2=$?
+                    else
+                      WRITE_ALARM "Source Backup File Not Sync" "MAJOR" "File ${file} Not Sync .."
+                      cp -fp ${file} ${SOURCE_UNSYNC_PATH} 2>/dev/null
+                      CKF1=$?
+                      cp -fp ${fileck} ${SOURCE_UNSYNC_PATH} 2>/dev/null
+                      CKF2=$?
+                      if [ ${CKF1} -eq 0 -a ${CKF2} -eq 0 ];then
+                         rm -f ${file}
+                         rm -f ${fileck}
+                         ((COUNT_UNFILE ++))
+                       elif [ ${CKF1} -eq 0 ];then
+                         rm -f ${file}
+                         ((COUNT_UNFILE ++))
+                       elif [ ${CKF2} -eq 0 ];then
+                         rm -f ${fileck}
+                         ((COUNT_UNFILE ++))
+                       fi
+                      continue
+                   fi
+                 else
+                  OUTPUT_FILE=${DATE_PATH}/${OUTPUT_FILE}
+                  cp -p ${file} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} 2>/dev/null
+                  CKF1=$?
+                fi
+             else 
+                if [ -z ${DATE_PATH} ] || [ "${DATE_PATH}" == "" ]||[ "${DATE_PATH}" == "NO_DATE" ];then
+                   DATE_PATH=$(date +%Y%m%d)
+                fi
+                CHECK_FILE_DUPLICATE "${SOURCE_BACKUP_PATH}" "${DEST_FILE}" 
+                OUTPUT_FILE=${DATE_PATH}/${OUTPUT_FILE}_$(date +%Y%m%d%H%M%S).bak
+                cp -p ${file} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} 2>/dev/null
+                CKF1=$?
+            fi
+       if [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ];then
+           if [ ${CKF1} -eq 0 -a  ${CKF2} -eq 0 ]
+            then
+             echo "${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}" >> ${BACKUP_LISTFILE_TEMP}
+             if [ ${ENABLEREC} == "ON" ];then
+               reconcile "${file}" "${SOURCE_BACKUP_PATH}"
+             fi
+              rm -f ${file}
+              rm -f ${fileck}
+             ((COUNT_FILE ++))
+             if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then
+               END_FILE_NAME="${SOURCE_BACKUP_PATH}/${OUTPUT_FILE%%.${FILE_TYPE}}.${CONTROL_FILE_SUFFIX}"
+               touch ${END_FILE_NAME}
+             fi
+            WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} successfully"
+           else 
+            WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} failed"
+            WRITE_ALARM "MV-${SOURCE_BACKUP_PATH}" "MAJOR" "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} failed"
+           fi
+       else 
+         if [ ${CKF1} -eq 0 ]
+          then
+           echo "${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}" >> ${BACKUP_LISTFILE_TEMP}
+           if [ ${ENABLEREC} == "ON" ];then
+              reconcile "${file}" "${SOURCE_BACKUP_PATH}"
+           fi
+           rm -f ${file}
+           ((COUNT_FILE ++))
+           if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then
+             END_FILE_NAME="${SOURCE_BACKUP_PATH}/${OUTPUT_FILE%%${FILE_TYPE}}.${CONTROL_FILE_SUFFIX}"
+             touch ${END_FILE_NAME}
+           fi
+           WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} successfully"
+        else
+           WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} failed"
+           WRITE_ALARM "MV-${SOURCE_BACKUP_PATH}" "MAJOR" "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} failed"
+        fi
+      fi 
+           ;;
+         *)
+           WRITE_LOG "Post action : noaction" 
+           ((COUNT_FILE ++))
+          ;;
+       esac
+  else 
+      if [ -z "${SOURCE_BACKUP_PATH}" ]
+          then
+            WRITE_LOG "${SOURCE_BACKUP_PATH} not found please check"
+            WRITE_ALARM "${SOURCE_BACKUP_PATH}-notfound" "MAJOR" "${SOURCE_BACKUP_PATH} not found"
+            return
+       fi
+       if [ -n "${SOURCE_BACKUP_PATH}" -a "${SOURCE_BACKUP_PATH}" != "NULL" ]
+          then
+           mkdir -p ${SOURCE_BACKUP_PATH} 2>/dev/null
+       fi
+        DEST_FILE="${file}"
+        check_file_name "${file}"
+        if [ "${ENABLE_DATE_BAK}" == "ON" ];then
+             if [ -z ${DATE_PATH} ] || [ "${DATE_PATH}" == "" ]||[ "${DATE_PATH}" == "NO_DATE" ];then 
+                DATE_PATH=$(date +%Y%m%d)
+             fi
+             if [ ! -d ${SOURCE_BACKUP_PATH}/${DATE_PATH} ];then
+                mkdir -p ${SOURCE_BACKUP_PATH}/${DATE_PATH}
+             fi
+             CHECK_FILE_DUPLICATE "${SOURCE_BACKUP_PATH}/${DATE_PATH}" "${DEST_FILE}"
+              if [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ];then
+                  OUTPUT_FILE=${DATE_PATH}/${OUTPUT_FILE}_$(date +%Y%m%d%H%M%S).bak
+                  fileck=${file%%.${FILE_TYPE}}.${CONTROL_SOURCE_FILE}
+                  OUTPUT_FILECK=$(basename ${fileck})
+                   if [ -f ${fileck} -a  -f ${file} ];then
+                     cp -p ${file} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} 2>/dev/null
+                     CKF1=$?
+                     cp -p ${fileck} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILECK} 2>/dev/null
+                     CKF2=$?
+                    else
+                      WRITE_ALARM "Source Backup File Not Sync" "MAJOR" "File ${file} Not Sync .."
+                      cp -fp ${file} ${SOURCE_UNSYNC_PATH} 2>/dev/null
+                      CKF1=$?
+                      cp -fp ${fileck} ${SOURCE_UNSYNC_PATH} 2>/dev/null
+                      CKF2=$?
+                      if [ ${CKF1} -eq 0 -a ${CKF2} -eq 0 ];then
+                         rm -f ${file}
+                         rm -f ${fileck}
+                         ((COUNT_UNFILE ++))
+                       elif [ ${CKF1} -eq 0 ];then
+                         rm -f ${file}
+                         ((COUNT_UNFILE ++))
+                       elif [ ${CKF2} -eq 0 ];then
+                         rm -f ${fileck}
+                         ((COUNT_UNFILE ++))
+                       fi
+                      continue
+                   fi
+               else
+                  OUTPUT_FILE=${DATE_PATH}/${OUTPUT_FILE}
+                  cp -p ${file} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} 2>/dev/null
+                  CKF1=$?
+              fi 
+        else
+             if [ -z ${DATE_PATH} ] || [ "${DATE_PATH}" == "" ];then
+                DATE_PATH=$(date +%Y%m%d)
+             fi 
+             CHECK_FILE_DUPLICATE "${SOURCE_BACKUP_PATH}" "${DEST_FILE}"
+             OUTPUT_FILE=${DATE_PATH}/${OUTPUT_FILE}_$(date +%Y%m%d%H%M%S).bak
+             cp -p ${file} ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} 2>/dev/null
+        fi 
+        
+     if [ "${ENABLECONTROL_SOURCE_FILE}" == "ON" ];then  
+        if [ ${CKF1} -eq 0 -a  ${CKF2} -eq 0 ]
+           then
+           echo "${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}" >> ${BACKUP_LISTFILE_TEMP}
+           if [ ${ENABLEREC} == "ON" ];then
+              reconcile "${file}" "${SOURCE_BACKUP_PATH}"
+           fi
+           rm -f ${file}
+            rm -f ${fileck}
+           ((COUNT_FILE ++))
+           if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then
+             END_FILE_NAME="${SOURCE_BACKUP_PATH}/${OUTPUT_FILE%%.${FILE_TYPE}}.${CONTROL_FILE_SUFFIX}"
+             touch ${END_FILE_NAME}
+           fi
+           WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} successfully"
+        else 
+           WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} failed"
+           WRITE_ALARM "MV-${SOURCE_BACKUP_PATH}" "MAJOR" "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} failed"
+        fi
+     else
+        if [ ${CKF1} -eq 0 ]
+          then
+           echo "${SOURCE_BACKUP_PATH}/${OUTPUT_FILE}" >> ${BACKUP_LISTFILE_TEMP}
+           if [ ${ENABLEREC} == "ON" ];then
+              reconcile "${file}" "${SOURCE_BACKUP_PATH}"
+           fi
+           rm -f ${file}
+           ((COUNT_FILE ++))
+           if [ "${ENABLECONTROL_SUFFIX}" == "ON" ];then
+             END_FILE_NAME="${SOURCE_BACKUP_PATH}/${OUTPUT_FILE%%${FILE_TYPE}}.${CONTROL_FILE_SUFFIX}"
+             touch ${END_FILE_NAME}
+           fi
+           WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} successfully"
+
+        else
+           WRITE_LOG "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} failed"
+           WRITE_ALARM "MV-${SOURCE_BACKUP_PATH}" "MAJOR" "mv ${file} to ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} failed"
+        fi
+    fi 
+ fi
+done
+if [ "${POST_ACTION}" == "backup" ];then 
+  WRITE_LOG "Total copy file from ${SOURCE_PATH} to backup path ${SOURCE_BACKUP_PATH}/${OUTPUT_FILE} :${COUNT_FILE} "
+  COUNT_FILE=0
+elif [ "${POST_ACTION}" == "delete" ];then 
+  WRITE_LOG "Total delete file from ${SOURCE_PATH} :${COUNT_FILE} "
+  COUNT_FILE=0
+ else 
+  WRITE_LOG "Total noaction file from ${SOURCE_PATH} :${COUNT_FILE} "
+  COUNT_FILE=0
+fi
+echo "Stop:$(date +%Y%m%d%H%M%S)" >> ${HISTORY_FILE}
+rm -f ${BACKUP_LISTFILE_TEMP}
+rm -f ${FILELISTTEMP}
+}

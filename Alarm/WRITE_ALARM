@@ -1,0 +1,12 @@
+
+WRITE_ALARM()
+{
+. ${ALARM_SCRIPT_PATH}/stampalarm
+
+LOCATION="${APPLICATION_NAME}-${1}"
+SEVERITY="${2}"
+DESC="${3}"
+MAPPING="${LOCATION}"
+
+stampalarm "${ALARM_CONFIG_FILE}" "${SEVERITY}" "${ALARM_ID}" "${MAPPING}" "${DESC}"
+}

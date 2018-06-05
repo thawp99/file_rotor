@@ -1,0 +1,52 @@
+#!/bin/bash
+#. /home/ec2-user/sand_filerotor/conf/main.conf
+. ${FUNCTION_PATH}/xtimer_full
+
+housekeeper()
+{
+
+
+SOURCE_BACKUP_PATH=${1}
+#SOURCE_BACKUP_PATH2=$(cd ${SOURCE_BACKUP_PATH} ; cd .. ; pwd;)
+SOURCE_BACKUP_PATH2=$(echo ${SOURCE_BACKUP_PATH} |sed s/$(basename ${SOURCE_BACKUP_PATH})//g) 
+FILE_TYPE=${2}
+DAY_ZIP=${3}
+DAY_KEEP=${4}
+
+## 
+if [ ! -d .fref ]
+  then 
+    mkdir -p .fref
+fi
+
+FOLD=$(bash ${FUNCTION_PATH}/xtimer_full -${DAY_KEEP})
+
+if [ ! -f .fref/${FOLD}0000.ref ] 
+ then
+   touch -t ${FOLD}0000 .fref/${FOLD}0000.ref
+fi
+
+if [ -d ${SOURCE_BACKUP_PATH} ] && [ -d ${SOURCE_BACKUP_PATH2} ] 
+   then
+	if [[ $(basename ${SOURCE_BACKUP_PATH}) = *[[:digit:]]* ]]
+	   then
+		SOURCE_BACKUP_PATH2=${SOURCE_BACKUP_PATH2}
+	   else
+		SOURCE_BACKUP_PATH2=${SOURCE_BACKUP_PATH}
+	fi
+	find ${SOURCE_BACKUP_PATH2}/ -name "*.${FILE_TYPE}*" -mtime +${DAY_ZIP} |grep -v ".gz" |while read fzip ;do 
+             if [ -f ${fzip} ] ;then 
+                gzip ${fzip} 2>/dev/null 
+             fi
+           done
+        if [ $(echo "${LIST_FOLD}"|wc -l) -gt 0 ] && [ $? -eq 0 ]
+           then
+             find ${SOURCE_BACKUP_PATH2} -type f ! -newer .fref/${FOLD}0000.ref  -exec rm -f {} \; 2>/dev/null
+              if [ $? -eq 0 ];then 
+                 rm .fref/${FOLD}0000.ref
+              fi
+        fi
+fi
+}
+
+

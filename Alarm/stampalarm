@@ -1,0 +1,127 @@
+stampalarm()
+{
+
+     if [ -z "${1}" -o -z "${2}" -o -z "${3}" -o -z "${4}" -o -z "${5}" ]
+       then
+         echo "Please enter stampalarm CONFIG_FILE SEVERITY ALARM_ID MAPPING DESC"
+         exit 1
+     fi
+
+     CURRENT_DATE_TIME="$(date +%Y%m%d:%H%M%S)"
+     RANDOM_DIGIT="$((RANDOM%8999+1000))"	
+     KEY="#<DELAYSENDTIME"
+     CONFIG_FILE=${1}
+     SEVERITY=${2}
+     ALARM_ID=${3}
+     MAPPING="${4}"
+     LOCATION="${MAPPING}"
+     DESC=${5}
+     DELAY_TIME=${DEFAULT_DELAY_TIME}
+     STATUS_SEND=NO
+
+      . ${ALARM_CONFIG_FILE} 
+
+
+      writealarm(){
+      STAMP_TIME=$(date +%Y%m%d%H%M%S)
+      echo "${ALARM_SYSTEM_NAME}|${HOSTNAME}|${LOCATION}|${ALARM_ID}|${SEVERITY}|${DESC}|${STAMP_TIME}|None|UOSS SYSTEM" >> ${ALARM_FILE}
+       }
+
+      STAMP_ALARM_TEMP_FILE=${ALARM_STAMP_FILE}.tmp
+      STAMP_ALARM_FLAG_FILE=${ALARM_STAMP_FILE}.flag
+
+      REF_ALARM_ID=$(echo ${ALARM_ID} |cut -c5-8)
+  
+      if [ -f "${ALARM_STAMP_FILE}" ]
+         then 
+           ####### Found error and found alarm stamp file ##########
+           TOTAL_LINE=$(cat ${ALARM_STAMP_FILE} |wc -l)
+           UPDATE_FLAG=0
+           count=1
+           #cat ${ALARM_STAMP_FILE} |while read line
+           while [ ${count} -le ${TOTAL_LINE} ]
+            do
+                #echo "ROUND --- ${count}---"
+               line=$(sed -n "${count},${count} p" ${ALARM_STAMP_FILE})
+               REF_SEVERITY=$(echo ${line} |cut -f1 -d"|")
+               REF_ALARMID=$(echo ${line} |cut -f2 -d"|")
+               REF_RANDOM_DIGIT=$(echo ${line} |cut -f3 -d"|")
+               REF_MAPPING=$(echo ${line} |cut -f4 -d"|")
+               REF_DATE_TIME=$(echo ${line} |cut -f5 -d"|")
+               REF_DESC=$(echo ${line} |cut -f6 -d"|")
+
+               if [ "${SEVERITY}" == "${REF_SEVERITY}" -a "${ALARM_ID}" == "${REF_ALARMID}" -a "${MAPPING}" == "${REF_MAPPING}" ]
+                 then
+                   UPDATE_FLAG=0
+                   echo ${UPDATE_FLAG} > ${STAMP_ALARM_FLAG_FILE}
+                   #### Found existing error and same severity ####
+                   cd ${ALARM_PATH}
+                   DIFF_MIN=$(java GetTime "${REF_DATE_TIME}" "${CURRENT_DATE_TIME}")
+                   if [ ${DIFF_MIN} -gt ${DELAY_TIME} ]
+                     then
+                      STATUS_SEND=YES
+                      #ALARM_DESC="${REF_RANDOM_DIGIT}: ${REF_MAPPING} ${DESC}"
+                      ALARM_DESC="${REF_MAPPING} ${DESC}"
+                      writealarm ${ALARM_ID} ${SEVERITY} "${ALARM_DESC}" "${LOCATION}"
+                      ##### Update time for alarm stamp file ########
+                      echo "${SEVERITY}|${ALARM_ID}|${REF_RANDOM_DIGIT}|${MAPPING}|${CURRENT_DATE_TIME}|${DESC}" >> ${STAMP_ALARM_TEMP_FILE}  
+                     else
+                      #### Found same existing error stamp existing error in alarm stamp file ####
+                      echo "${REF_SEVERITY}|${REF_ALARMID}|${REF_RANDOM_DIGIT}|${REF_MAPPING}|${REF_DATE_TIME}|${REF_DESC}" >> ${STAMP_ALARM_TEMP_FILE}  
+                   fi
+                   LINECOUNT=$(echo "${count}+1" |bc)
+                   sed -n "${LINECOUNT},$ p" ${ALARM_STAMP_FILE} |awk "NF > 0" >> ${STAMP_ALARM_TEMP_FILE}
+                   break
+
+               elif [ "${SEVERITY}" != "${REF_SEVERITY}" -a "${ALARM_ID}" == "${REF_ALARMID}" -a "${MAPPING}" == "${REF_MAPPING}" ]
+                 then
+                      UPDATE_FLAG=0
+                      echo ${UPDATE_FLAG} > ${STAMP_ALARM_FLAG_FILE}
+                      #### Found existing error and different severity ####
+                      STATUS_SEND=YES
+                      #ALARM_DESC="${REF_RANDOM_DIGIT}:${REF_MAPPING} ${DESC}"
+                      ALARM_DESC="${REF_MAPPING} ${DESC}"
+                      writealarm ${ALARM_ID} ${SEVERITY} "${ALARM_DESC}" "${LOCATION}"
+                      ##### Update time and severity for alarm stamp file ########
+                      echo "${SEVERITY}|${ALARM_ID}|${REF_RANDOM_DIGIT}|${MAPPING}|${CURRENT_DATE_TIME}|${DESC}" >> ${STAMP_ALARM_TEMP_FILE}  
+
+                      LINECOUNT=$(echo "${count}+1" |bc)
+                      sed -n "${LINECOUNT},$ p" ${ALARM_STAMP_FILE} |awk "NF > 0" >> ${STAMP_ALARM_TEMP_FILE}
+                      break
+                 else
+                      UPDATE_FLAG=1
+                      echo ${UPDATE_FLAG} > ${STAMP_ALARM_FLAG_FILE}
+                      #### Not Found same existing error stamp existing error and new  error in alarm stamp file ####
+                      echo "${REF_SEVERITY}|${REF_ALARMID}|${REF_RANDOM_DIGIT}|${REF_MAPPING}|${REF_DATE_TIME}|${REF_DESC}" >> ${STAMP_ALARM_TEMP_FILE}  
+
+               fi
+               count=$(expr ${count} + 1)
+           done
+           UPDATE_FLAG=$(cat ${STAMP_ALARM_FLAG_FILE})
+           if [ "${UPDATE_FLAG}" == "1" ]
+              then
+                   STATUS_SEND=YES
+                   #ALARM_DESC="${RANDOM_DIGIT}:${MAPPING} ${DESC}"
+                   ALARM_DESC="${MAPPING} ${DESC}"
+                   writealarm ${ALARM_ID} ${SEVERITY} "${ALARM_DESC}" "${LOCATION}"
+                   echo "${SEVERITY}|${ALARM_ID}|${RANDOM_DIGIT}|${MAPPING}|${CURRENT_DATE_TIME}|${DESC}" >> ${STAMP_ALARM_TEMP_FILE}  
+           fi
+           
+         else
+           ####### Found new error and not found alarm stamp file ##########
+           STATUS_SEND=YES
+           #ALARM_DESC="${RANDOM_DIGIT}:${MAPPING} ${DESC}"
+           ALARM_DESC="${MAPPING} ${DESC}"
+           writealarm ${ALARM_ID} ${SEVERITY} "${ALARM_DESC}" "${LOCATION}"
+           echo "${SEVERITY}|${ALARM_ID}|${RANDOM_DIGIT}|${MAPPING}|${CURRENT_DATE_TIME}|${DESC}" >> ${STAMP_ALARM_TEMP_FILE}
+      fi
+
+echo "${STATUS_SEND}"
+
+if [ -f "${STAMP_ALARM_TEMP_FILE}" ]
+   then
+    mv -f ${STAMP_ALARM_TEMP_FILE} ${ALARM_STAMP_FILE}    
+fi
+rm -f ${STAMP_ALARM_FLAG_FILE}
+
+}

@@ -1,0 +1,69 @@
+#!/bin/bash
+
+. /home/ec2-user/sand_filerotor/conf/main.conf
+. /home/ec2-user/sand_filerotor/conf/udr_centralizedlog.conf
+
+. ${FUNCTION_PATH}/WRITE_LOG
+. ${FUNCTION_PATH}/reconcile
+
+. ${ALARM_PATH}/alarm.conf
+. ${ALARM_PATH}/WRITE_ALARM
+. ${ALARM_PATH}/CLEAR_ALARM
+
+MD_TEMP_PATH=/tmp
+
+CDR_DEL_HEADER="version=|<opudr>|</opudr>|DOCTYPE"
+
+WRITE_HEADER(){
+
+echo "<?xml version='1.0'?>" > ${1}
+echo "<!DOCTYPE opudr SYSTEM 'http://10.217.46.122/DTD/opudr.dtd'>" >> ${1}
+echo "<opudr>" >> ${1}
+
+}
+
+WRITE_FOOTER(){
+
+echo "</opudr>" >> ${1}
+
+}
+
+FILE_IN=${1}
+FILE_END=${2}
+DEST_PATH=${3}
+
+         if [ -f "${FILE_IN}" ]
+           then
+
+            rm -f ${FILE_END}
+
+            filename=$(basename ${FILE_IN})
+
+            temp_file=${MD_TEMP_PATH}/${filename}.tmp
+
+            WRITE_HEADER "${temp_file}"   
+
+            cat ${FILE_IN} |egrep -v "${CDR_DEL_HEADER}" >> ${temp_file}
+
+            WRITE_FOOTER "${temp_file}"   
+
+            mv -f ${temp_file} ${FILE_IN}
+
+            if [ $? -eq 0 ]
+                then
+					touch ${FILE_END}
+					chmod 777 ${FILE_IN}
+					chmod 777 ${FILE_END}
+                    WRITE_LOG "moving ${temp_file} to ${FILE_IN} successfully"
+
+                else
+
+                    WRITE_LOG "moving ${temp_file} to ${FILE_IN} failed"
+            fi
+
+
+			
+	    echo "DEST_PATH = ${DEST_PATH}" 
+	    reconcile "${FILE_IN}" "${DEST_PATH}"
+
+         fi

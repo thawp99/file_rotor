@@ -1,0 +1,16 @@
+20180605:092010:Select sand file script template is "af_onm.bash"
+20180605:092013:Select Sand file configure template "aflog.conf"
+20180605:092117:Post action  mode is "delete"
+20180605:092121:Not using file Prefix ..
+20180605:092123:Not using file Midfix ..
+20180605:092131:Configure script af_onm.bash ..
+20180605:092131:Configure Source path:/home/ec2-user/log --> Completed
+20180605:092131:Configure Dest path:"/centralized/aflog" --> Completed
+20180605:092131:Configure Post action --> Completed
+20180605:092131:Configure File Type --> Completed
+20180605:092131:Configure File Suffix --> Completed
+20180605:092136:Apply Scrip is "yes"
+20180605:092136:Deploy master script "af_onm.bash"--> Completed
+20180605:092136:Deploy configuration script "aflog.conf"--> Completed
+20180605:092136:Apply Script -->Completed
+20180605:092136:Clear Sand file rotor Log --> Completed 

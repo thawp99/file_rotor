@@ -1,0 +1,966 @@
+#!/bin/bash 
+
+################################
+## Sand File Preinstallation ###
+## By Siddeploy Team         ###									
+## Build date 27/04/2017     ###
+## By thawp175               ###
+################################
+
+
+VERSION=sand_filerotor_sid.v04r12102017
+EQUINOX_UTILS=/opt/equinox/utils ## Default path
+EQUINOX_APP=/opt/equinox         ## Default Path
+################################
+
+SAND_FILE_CURRENT_PATH=$(pwd)
+NEW_EQUINOX_UTILS=$(echo $(pwd) | awk -F"/sand_filerotor" '{print $1}')
+NEW_EQUINOX_APP=$(echo "${NEW_EQUINOX_UTILS}"|awk -F"/utils" '{print $1}')
+DEFAULT_PATH=${EQUINOX_UTILS}/sand_filerotor
+PRESCRIPTCONF=${SAND_FILE_CURRENT_PATH}/prescriptconf
+PRECONF=${SAND_FILE_CURRENT_PATH}/preconf
+PREPLUGIN=${SAND_FILE_CURRENT_PATH}/prepluin
+TEMPPRECONF=${SAND_FILE_CURRENT_PATH}/pretemp
+LOG_SCRIPT=${SAND_FILE_CURRENT_PATH}/log
+LOG_INSTALL=${SAND_FILE_CURRENT_PATH}/loginstall
+TEMP=${SAND_FILE_CURRENT_PATH}/temp
+BOLD=$(tput bold)
+UNBOLD=$(tput sgr0)
+COUNT=0
+NAMECONF=""
+HISTORY_CONF=""
+DESTM=()
+#################################
+if [ ! -d ${LOG_INSTALL} ];then mkdir -p ${LOG_INSTALL} ;fi
+
+wrlog(){
+LOG_FILE=${LOG_INSTALL}/sid_install_$(date +%Y%m%d).log
+echo "$(date +%Y%m%d:%H%M%S):$1" >> ${LOG_FILE}
+
+}
+
+select_script(){
+if [ ! -d ${TEMPPRECONF} ];then mkdir -p ${TEMPPRECONF} ;fi
+#echo "${SAND_FILE_CURRENT_PATH}"
+if [ ! -d ${PRESCRIPTCONF} ] 
+  then 
+   echo "Don't found tempalte path ${PRESCRIPTCONF}"
+   wrlog "ERROR:Don't found tempalte path \"${PRESCRIPTCONF}\""
+   exit 100
+fi
+
+if [ ! -d ${PRECONF} ] 
+  then
+   echo "Don't found tempalte path ${PRECONF}"
+   wrlog "ERROR:Don't found tempalte path \"${PRECONF}\""
+   exit 100 
+fi
+
+echo "${BOLD}+--------------------------------------+${UNBOLD}"
+echo "${BOLD}|Choose your sand file script template |${UNBOLD}"
+echo "${BOLD}+--------------------------------------+${UNBOLD}"
+select sand_script in $(ls ${PRESCRIPTCONF}/*.bash |awk -F"/" '{print $NF}'|grep -v preinstall) $(echo "help")
+   do
+     if [ "${sand_script}" != "" ] 
+       then
+       if [ "${sand_script}" == "help" ];then 
+           cat ${PRESCRIPTCONF}/help
+           continue 
+        else
+           wrlog "Select sand file script template is \"${sand_script}\""
+           break;
+       fi
+     else 
+         echo "Select choice number as above only .."
+         continue
+     fi  
+   done
+cp -f ${PRESCRIPTCONF}/${sand_script} ${TEMPPRECONF}/${sand_script}.$$
+if [ $? -ne 0 ]
+ then 
+   echo "Error:Prepare configuration fail .. "  
+   wrlog "Error:Prepare configuration \"${sand_script}\" --> failed .."
+   exit 100 
+else 
+ ls -ltr ${SAND_FILE_CURRENT_PATH}/*.bash 2>/dev/null|sort|grep "${sand_script}" >/dev/null
+ if [ $? -eq 0 ] || [ "${sand_script}" == "customlog.bash" ] || [ "${sand_script}" == "custombss.bash" ] || [ "${sand_script}" == "scp_custom_bss.bash" ] || [ "${sand_script}" == "report8x.bash" ] || [ "${sand_script}" == "afreport8x_centralizedlog.bash" ] || [ "${sand_script}" == "udrx.bash" ] || [ "${sand_script}" == "udrx_centralizedlog.bash" ];then 
+  while : ;do
+     echo -n "Enter Sand File Script Name:" 
+     read -e SAND_SCRIPTNAME
+     if [ "${SAND_SCRIPTNAME}" == "" ];then 
+         continue
+     fi
+     SAND_SCRIPTNAME=${SAND_SCRIPTNAME%%.bash}
+     ls -ltr ${SAND_FILE_CURRENT_PATH}/*.bash 2>/dev/null |grep "${SAND_SCRIPTNAME}.bash" >/dev/null
+      if [ $? -eq 0 ];then
+        echo "File Script already exist.."
+        continue
+      else 
+        break
+      fi
+   done
+ fi
+fi
+FILESCRIPT=${TEMPPRECONF}/${sand_script}.$$
+}
+
+replace_main(){
+## Replace default path ## 
+old=$(echo "${EQUINOX_UTILS}"|sed 's/\//\\\//g')
+new=$(echo "${NEW_EQUINOX_UTILS}"|sed 's/\//\\\//g')
+for cf in $(grep -rl "${EQUINOX_UTILS}" *|egrep -v "setup|prepluin|prescriptconf|preconf|pretemp") 
+  do 
+     sed -i "s/${old}/${new}/g" ${cf} 2>/dev/null
+       if [ $? -eq 0 ] 
+          then 
+           continue
+         else 
+          echo "$(date +%Y%m%d%T):Error:Script can't reconfigure ${NEW_EQUINOX_UTILS} Path ${cf}" 
+          wrlog "Error:Script can't reconfigure ${NEW_EQUINOX_UTILS} Path ${cf} --> failed .."
+          exit 100
+       fi
+  done
+
+old=$(echo "${EQUINOX_APP}"|sed 's/\//\\\//g')
+new=$(echo "${NEW_EQUINOX_APP}"|sed 's/\//\\\//g')
+for cf1 in $(grep -rl "${EQUINOX_APP}" *|egrep -v "setup|prepluin|prescriptconf|preconf|pretemp")
+  do
+     sed -i "s/${old}/${new}/g" ${cf1} 2>/dev/null
+       if [ $? -eq 0 ]
+          then
+           continue
+         else
+          echo "$(date +%Y%m%d%T):Error:Script can't reconfigure ${NEW_EQUINOX_APP} Path ${cf1}"
+          wrlog "Error:Script can't reconfigure ${NEW_EQUINOX_APP} Path ${cf1} --> failed .."
+          exit 100
+       fi
+  done
+
+}
+
+select_conf(){
+echo "${BOLD}+------------------------------------------+${UNBOLD}"
+echo "${BOLD}|Choose your sand file configure template  |${UNBOLD}"
+echo "${BOLD}+------------------------------------------+${UNBOLD}"
+select cftp in $(ls ${PRECONF}/$(echo "${sand_script}"|awk -F"." '{print $1}'|awk -F"_" '{print $1}')*|awk -F"/" '{print $NF}' )
+do
+   if [ "${cftp}" != "" ]
+      then
+        wrlog "Select Sand file configure template \"${cftp}\""
+        break
+   else 
+      echo "Select choice number as above only .."
+      continue
+   fi
+done
+cp -f ${PRECONF}/${cftp} ${TEMPPRECONF}/${cftp}.$$
+HISTORY_CONF=${cftp}
+MASTER_CONF=$(echo ${cftp}|awk -F. '{print $1}')
+if [ $? -ne 0 ]
+  then 
+    echo "Error:Prepare configuration fail .. "  
+    wrlog "Error:Prepare configuration \"${cftp}\"--> failed "
+    exit 100 
+fi
+
+FILECONF=${TEMPPRECONF}/${cftp}.$$
+}
+
+
+getvalue(){
+
+grep "${cftp}" ${TEMP}/$$.tmp 2>/dev/null;CK=$?
+
+if [ ${COUNT} -gt 0 ] && [ ${CK} -eq 0 ] || [ "${SAND_SCRIPTNAME}" != "" ];then 
+ while : ;do
+  echo -e "${BOLD}Change configuration name first !${UNBOLD}"
+  echo -n "${BOLD}Configure Name:${UNBOLD}"
+  read -e NAMECONF 
+  NAMECONF=${NAMECONF%%.*}
+   if [ "${NAMECONF}" != "" ];then 
+     mv ${TEMPPRECONF}/${cftp}.$$ ${TEMPPRECONF}/${NAMECONF}.$$
+     FILECONF=${TEMPPRECONF}/${NAMECONF}.$$
+     echo "+------------------------------------------+"
+     echo " "
+     break 
+   fi
+  done 
+fi
+while : ;do
+echo -n "${BOLD}Enter Source path${UNBOLD}:"
+read -e SOURCE
+SOURCE=${SOURCE%/}
+echo "+------------------------------------------+"
+if [ ! -d ${SOURCE} ] && [ "${SOURCE}" != "" ]
+ then 
+   mkdir -p ${SOURCE}
+   if [ $? -eq 0 ];then
+    echo "Create New Source Path --> Completed "
+   else
+    echo "Create New Source Path --> Failed "
+   fi   
+   continue 
+ elif [ "${SOURCE}" == "" ];then
+   continue
+ elif [ -d ${SOURCE} ] && [ "${SOURCE}" != "" ];then 
+  echo "+------------------------------------------+" 
+  break 
+fi
+done
+
+if [ ${sand_script%.bash} != "scp_custom_bss" ];then 
+while : ;do
+ echo -n "${BOLD}Enter Destination Path:${UNBOLD}"
+ read -e DEST 
+ if [ "${DEST}" == "" ];then 
+   continue
+ fi
+ unset DESTM
+ for DM in ${DEST} 
+  do 
+      DESTM[${COUNT}]=${DM%/}
+      ((COUNT ++))
+ done 
+ COUNT=0
+ CK=()
+#DEST=${DEST%/}
+ for DEST in ${DESTM[@]} 
+  do 
+    if [ ! -d ${DEST} ] && [ "${DEST}" != "" ]
+     then
+      mkdir -p ${DEST}
+      if [ $? -eq 0 ];then   
+        ((COUNT ++))
+        echo "Create New Destination Path --> Completed "
+        continue
+      else 
+        echo "Create New Destination Path --> Failed "
+      fi
+    elif [ -d ${DEST} ] && [ "${DEST}" != "" ];then
+      ((COUNT ++))
+      CK[${COUNT}]=0
+      #echo "+------------------------------------------+"
+    fi
+   continue
+ done
+ COUNT=0
+ RET=0
+ if [ ${#CK[@]} -eq ${#DESTM[@]} ]
+  then 
+   echo "${DESTM[@]}"
+   DEST="$(echo ${DESTM[@]}|uniq)"
+   echo "+------------------------------------------+"
+   unset DESTM
+   break
+ fi
+done
+else 
+  while : ;do
+    echo -n "${BOLD}Enter scp Destination Path <ip|dest|backup>:${UNBOLD}"
+    read -e DEST
+    if [ "${DEST}" != "" ] || [ "${DEST}" == "" ];then
+      break
+    fi
+   done
+fi
+
+while : ;do
+echo -n "${BOLD}Enter post Action${BOLD}<delete,backup,noaction>:${UNBOLD}"
+read -e POSTACTION
+if [ "${POSTACTION}" == "delete" ]
+ then
+   echo "Post action  mode is ${BOLD}\"${POSTACTION}\"${UNBOLD}"
+   wrlog "Post action  mode is \"${POSTACTION}\""
+   echo "+------------------------------------------+"
+   break
+ elif [ "${POSTACTION}" == "backup" ]
+   then  
+     echo "Post action  mode is ${BOLD}\"${POSTACTION}\"${UNBOLD}"
+     wrlog "Post action  mode is \"${POSTACTION}\""
+     while : ;do
+       echo -n "${BOLD}Enter backup path:${UNBOLD}"
+       read -e BACKUP
+       BACKUP=${BACKUP%/}
+       echo "+------------------------------------------+"
+       if [ ! -d ${BACKUP} ] && [ "${BACKUP}" != "" ]
+          then
+            mkdir -p ${BACKUP}
+            if [ $? -eq 0 ];then
+            echo "Create New Backup Path --> Completed "
+             else
+            echo "Create New Backup Path --> Failed "
+            fi
+             continue
+        elif [ "${BACKUP}" == "" ];then
+           continue 
+        elif [ -d ${BACKUP} ] && [ "${BACKUP}" != "" ];then
+          echo "+------------------------------------------+"
+          break
+       fi
+     done
+   break
+ elif [ "${POSTACTION}" == "noaction" ] 
+    then
+    echo "Post action  mode is ${BOLD}\"Noaction\"${UNBOLD}"
+    wrlog "Post action  mode is \"Noaction\""
+    POSTACTION=noaction
+    echo "+------------------------------------------+"
+    break 
+ else 
+   echo "Enter post action first ,try again"
+   continue
+fi
+done
+
+while : ;do
+echo -n "${BOLD}Enter File Prefix type such as <hostname,Appname etc..>:${UNBOLD}" 
+read -e FPTYPE
+ FPTYPE=${FPTYPE##.}
+ FPTYPE=${FPTYPE%%.}
+  if [ "${FPTYPE}" == "" ]
+    then 
+      echo "Not using file Prefix .." 
+      wrlog "Not using file Prefix .."
+       break 
+   else 
+      echo -n "File Prefix is \"${FPTYPE}\" ,Apply [y/n]:" 
+      read CKF
+      if [ "${CKF}" == "y" ];then 
+        break
+      else 
+       continue
+      fi
+  fi
+done
+
+while : ;do
+echo -n "${BOLD}Enter File Midfix type:${UNBOLD}" 
+read -e FMTYPE
+ FMTYPE=${FMTYPE##.}
+ FMTYPE=${FMTYPE%%.}
+  if [ "${FMTYPE}" == "" ]
+    then
+      echo "Not using file Midfix .." 
+      wrlog "Not using file Midfix .."
+       break
+   else
+      echo -n "File Midfix is \"${FMTYPE}\" ,Apply [y/n]:" 
+      read CKF
+      if [ "${CKF}" == "y" ];then
+        break
+      else
+       continue
+      fi
+  fi
+done
+
+
+while : ;do
+echo -n "${BOLD}Enter File Suffix  type such as <udr,log,alm,stat,rpt etc..>:${UNBOLD}" 
+read -e FTYPE
+FTYPE=${FTYPE##.}
+FTYPE=${FTYPE%%.}
+  if [ "${FTYPE}" == "" ]
+     then 
+       echo "Enter Suffix file first .." 
+       wrlog "Enter Suffix file first .."
+        continue 
+  fi
+ break
+done 
+while : ;do 
+echo -n "${BOLD}Enter File Suffix control  such as <end,sync etc..>:${UNBOLD}"
+read -e FCONTROL
+FCONTROL=${FCONTROL##.}
+ if [ "${FCONTROL}" == "" ]
+   then 
+       echo "Enter Suffix control file first .." 
+       wrlog "Enter Suffix control file first .."
+       continue 
+  fi
+ break
+done 
+echo "+------------------------------------------+"
+
+if [ "${POSTACTION}" == "backup" ]
+  then 
+    echo -n "${BOLD}Enable housekeeper for manage backup path or not ? <yes or no>:${UNBOLD}"
+    read -e HOUREKEEPER
+    if [ "${HOUREKEEPER}" == "yes" ]
+      then 
+        wrlog "Enable housekeeper is \"yes\""
+        while : ;do 
+        echo -n "Enter ${BOLD}Day zip:${UNBOLD}"
+        read -e DAYZIP
+        regex='(^[0-9]{1,2})'
+        if [[ ${DAYZIP} =~ $regex ]]
+           then
+            break 
+         else 
+             echo "Enter Dayzip number \"1-99\" only.."
+             wrlog "Enter Dayzip number \"1-99\" only.."
+             continue 
+        fi
+        done
+        while : ;do 
+        echo -n "Enter ${BOLD}Day keep:${UNBOLD}"
+        read -e DAYKEEP
+        regex='(^[0-9]{1,2})'
+        if [[ ${DAYKEEP} =~ $regex ]] 
+           then
+            break
+         else
+             echo "Enter Daykeep number \"1-99\" only.."
+             wrlog "Enter Daykeep number \"1-99\" only.."
+             continue
+        fi
+       done
+    echo "+------------------------------------------+"
+   fi
+fi
+
+if [ $(echo "${sand_script}" |grep udr|wc -l) -gt 0 ]
+  then
+   echo -n "${BOLD}Enable post plugin for \"md\" or not ? <yes,no>:${UNBOLD}"
+   read -e PLUGIN
+   echo "+------------------------------------------+"
+   if [ "${PLUGIN}" == "yes" ];then 
+     wrlog "Enable Post plugin \"yes\""
+     echo "${BOLD}+--------------------------------------+${UNBOLD}"
+     echo "${BOLD}|Choose your sand file plugin template |${UNBOLD}"
+     echo "${BOLD}+--------------------------------------+${UNBOLD}"
+     select PLUG in $(ls ${PREPLUGIN}/*.plugin |awk -F"/" '{print $NF}')
+       do
+         wrlog "Select sand file plugin template \"${PLUG}\""
+        break;
+       done             
+  
+    fi
+  if [ "${PLUGIN}" == "yes" ] && [ "${PLUG}" != "" ];then
+    cp -f ${PREPLUGIN}/${PLUG} ${TEMPPRECONF}/${PLUG}.$$
+    if [ $? -ne 0 ] 
+        then 
+         echo "Error:Prepare Plugin configuration fail .. " 
+         wrlog "ERROR:Prepare Plugin configuration fail .."
+         exit 100 
+    fi
+    FILEPLUGIN=${TEMPPRECONF}/${PLUG}.$$
+  fi
+fi
+}
+listconfig(){
+echo " "
+echo "${BOLD}|-- List configuration --|${UNBOLD}"
+echo "Cofiguration Name:${BOLD}$(echo ${FILECONF}|awk -F"/" '{print $NF}' |cut -d. -f1)${UNBOLD}"
+echo "Source path:${BOLD}${SOURCE}${UNBOLD}"
+echo "Dest path:${BOLD}${DEST}${UNBOLD}"
+#echo "Vipname:${BOLD}${VIP}${UNBOLD}"
+if [ "${POSTACTION}" == "backup" ]
+  then 
+   echo "Post action:${BOLD}${POSTACTION}${UNBOLD}"
+   echo "Backup path:${BOLD}${BACKUP}${UNBOLD}"
+   echo "Day zip:${BOLD}${DAYZIP}${UNBOLD}"
+   echo "Day keep:${BOLD}${DAYKEEP}${UNBOLD}"
+else 
+   echo "Post action:${BOLD}${POSTACTION}${UNBOLD}"
+fi
+
+if [ "${FPTYPE}" != "" ];then 
+echo "File Prefix type:${BOLD}${FPTYPE}${UNBOLD}"
+fi
+if [ "${FMTYPE}" != "" ];then
+echo "File Middle type:${BOLD}${FMTYPE}${UNBOLD}"
+fi
+echo "File Suffix type:${BOLD}${FTYPE}${UNBOLD}"
+echo "File Suffix control:${BOLD}${FCONTROL}${UNBOLD}"
+if [ "${PLUGIN}" == "yes" ]
+  then 
+   echo "Enable plugin:${BOLD}${PLUGIN}${UNBOLD}"
+   echo "Using plugin:${BOLD}\"${PLUG}\"${UNBOLD}"
+fi
+echo "${BOLD}|------------------------|${UNBOLD}"
+}
+
+
+### MAIN###
+clear 
+replace_main
+select_script
+###########
+while : 
+do
+ replace_main
+ select_conf
+ getvalue
+ listconfig
+##############
+echo "  "
+echo -n "${BOLD}Prepare Script configuration file or not ? <yes,no>:${UNBOLD}"
+ read -e CREATE
+if [ "${CREATE}" == "yes" ] ;then 
+    echo "Configure script ${sand_script} .."
+    wrlog "Configure script ${sand_script} .."
+    echo "|-- Configuration process --|"
+    CONCK=$(echo "${FILECONF}" |awk -F"/" '{print $NF}' |awk -F".conf" '{print $1}')
+    if [ "${NAMECONF}" != "" ] ;then
+     sed -i "s/APPLICATION_NAME=${MASTER_CONF}/APPLICATION_NAME=${NAMECONF}/g" ${FILECONF}
+      if [ $? -eq 0 ] 
+        then 
+           echo "Change Aplication name to ${NAMECONF} --> Completed" 
+           wrlog "Change Aplication name to ${NAMECONF} --> Completed"
+       else 
+           echo "Change Aplication name to ${NAMECONF} --> Failed" 
+           wrlog "Change Aplication name to ${NAMECONF} --> Failed" 
+      fi
+    fi 
+    TEMPCON=$(echo "${SOURCE}"|sed 's/\//\\\//g')
+    sed -i "s/SOURCE_PATH=\"\"/SOURCE_PATH=${TEMPCON}/g" ${FILECONF}
+    if [ $? -eq 0 ]
+      then 
+       echo "Configure Source path:$(echo ${SOURCE}|sed "s/\\\//g") --> ${BOLD}Completed${UNBOLD}"
+       wrlog "Configure Source path:$(echo ${SOURCE}|sed "s/\\\//g") --> Completed"
+    fi 
+    SOURCE=""
+    TEMPCON=$(echo "${DEST}"|sed 's/\//\\\//g')
+    sed -i "s/DEST_PATH=\"\"/DEST_PATH=\"${TEMPCON}\"/g" ${FILECONF}
+    if [ $? -eq 0 ]
+      then 
+        echo "Configure Dest path:$(echo \"${TEMPCON}\"|sed "s/\\\//g") --> ${BOLD}Completed${UNBOLD}" 
+        wrlog "Configure Dest path:$(echo \"${TEMPCON}\"|sed "s/\\\//g") --> Completed"
+        if [ ! -d ${DEST} ] && [ "${DEST}" != "" ];then 
+            mkdir -p ${DEST}
+        fi
+    fi
+    
+  if [ "${BACKUP}" != "" ]
+   then
+    sed -i "s/POSTACTION=\"\"/POSTACTION=\"${POSTACTION}\"/g" ${FILECONF}
+   if [ $? -eq 0 ] 
+      then 
+        echo "Configure Post action --> ${BOLD}Completed${UNBOLD}" 
+        wrlog "Configure Post action --> Completed"
+   fi
+ 
+   TEMPCON=$(echo "${BACKUP}"|sed 's/\//\\\//g')
+   sed -i "s/SOURCE_BACKUP_PATH=\"\"/SOURCE_BACKUP_PATH=${TEMPCON}/g" ${FILECONF}
+   if [ $? -eq 0 ]
+      then
+         echo "Configure Backup path:$(echo ${TEMPCON}|sed "s/\\\//g") --> ${BOLD}Completed${UNBOLD}"
+         wrlog "Configure Backup path:$(echo ${TEMPCON}|sed "s/\\\//g") --> Completed"
+   fi
+  
+   sed -i "s/DAY_ZIP=\"\"/DAY_ZIP=${DAYZIP}/g" ${FILECONF}
+   if [ $? -eq 0 ] 
+       then 
+       echo "Configure Day zip:${DAYZIP} Day--> ${BOLD}Completed${UNBOLD}" 
+       wrlog "Configure Day zip:${DAYZIP} Day--> Completed"
+   fi 
+
+   sed -i "s/DAY_KEEP=\"\"/DAY_KEEP=${DAYKEEP}/g" ${FILECONF}
+   if [ $? -eq 0 ] 
+      then 
+        echo "Configure Day keep:${DAYKEEP} Day--> ${BOLD}Completed${UNBOLD}"
+        wrlog "Configure Day keep:${DAYKEEP} Day--> Completed"
+   fi 
+ 
+  else
+    sed -i "s/POSTACTION=\"\"/POSTACTION=\"${POSTACTION}\"/g" ${FILECONF}
+    if [ $? -eq 0 ] 
+     then 
+       echo "Configure Post action --> ${BOLD}Completed${UNBOLD}"
+       wrlog "Configure Post action --> Completed"
+    fi
+  fi
+  if [ "${FPTYPE}" != "" ];then 
+     sed -i "s/FILE_PREFIX=\"\"/FILE_PREFIX=\"${FPTYPE}\"/g" ${FILECONF}   
+     if [ $? -eq 0 ] ;then
+          echo "Configure File Prefix --> ${BOLD}Completed${UNBOLD}"  
+          wrlog  "Configure File Prefix  --> Completed"
+        else
+          echo "Configure File Prefix --> ${BOLD}Failed${UNBOLD}"
+          wrlog "Configure File Prefix --> Failed"
+      fi
+  fi
+  if [ "${FMTYPE}" != "" ];then
+     sed -i "s/FILE_MIDFIX=\"\"/FILE_MIDFIX=\"${FMTYPE}\"/g" ${FILECONF}
+     if [ $? -eq 0 ] ;then
+          echo "Configure File Midfix --> ${BOLD}Completed${UNBOLD}"  
+          wrlog  "Configure File Midfix --> Completed"
+        else
+          echo "Configure File Midfix --> ${BOLD}Failed${UNBOLD}"
+          wrlog "Configure File Midfix --> Failed"
+      fi
+  fi
+ 
+  if [ "${FTYPE}" != "" ] && [ "${FCONTROL}" != "" ];then 
+     sed -i "s/FILE_TYPE=\"\"/FILE_TYPE=\"${FTYPE}\"/g" ${FILECONF}
+      if [ $? -eq 0 ] ;then  
+          echo "Configure File type --> ${BOLD}Completed${UNBOLD}"  
+          wrlog  "Configure File Type --> Completed"  
+        else 
+          echo "Configure File Type --> ${BOLD}Failed${UNBOLD}"
+          wrlog "Configure File Type --> Failed"
+      fi
+     sed -i "s/CONTROL_FILE_SUFFIX=\"\"/CONTROL_FILE_SUFFIX=\"${FCONTROL}\"/g" ${FILECONF}
+      if [ $? -eq 0 ] ;then  
+          echo "Configure File Suffix --> ${BOLD}Completed${UNBOLD}"  
+          wrlog  "Configure File Suffix --> Completed"  
+        else 
+          echo "Configure File Suffix --> ${BOLD}Failed${UNBOLD}"
+          wrlog "Configure File Suffix --> Failed"
+      fi
+   else 
+     echo "Not found File Type or File Suffix , please Reconfigure again --> ${BOLD}Failed${UNBOLD}"
+     wrlog "Not found File Type or File Suffix , please Reconfigure again --> Failed"
+     exit 100
+  fi
+
+  if [ "${PLUGIN}" == "yes" ]
+   then
+    echo "Enable plugin:${PLUGIN}"
+    echo "Using plugin:\"${PLUG}\""
+    wrlog "Enable plugin:${PLUGIN}"
+    wrlog "Using plugin:\"${PLUG}\"" 
+    echo "${PLUG}"|grep post 
+    if [ $? -eq 0 ] ;then 
+      TEMPCON=$(echo "${DEST}"|sed 's/\//\\\//g')
+      sed -i "s/MAIN_PATH=\"\"/MAIN_PATH=${TEMPCON}/g" ${FILEPLUGIN}
+      if [ $? -eq 0 ] 
+        then  
+          wrlog "Configure Postplugin \"${PLUG}\" --> Completed"
+          echo "Configure Postplugin \"${PLUG}\" --> ${BOLD}Completed${UNBOLD}"
+          sed -i "s/POST_PLUGIN=\"\"/POST_PLUGIN=\"on\"/g" ${FILECONF}
+          if [ $? -eq 0 ] 
+             then 
+             wrlog "Enable post plugin -->Completed"
+             echo "Enable post plugin -->${BOLD}Completed${UNBOLD}"
+          fi
+      fi
+    else 
+      echo "Configure During plugin \"${PLUG}\" --> Completed"
+      wrlog "Configure During plugin \"${PLUG}\" --> Completed"
+      sed -i "s/DURING_PLUGIN=\"\"/DURING_PLUGIN=\"on\"/g" ${FILECONF}
+       if [ $? -eq 0 ] 
+         then 
+          wrlog "Enable during plugin --> Completed"
+          echo "Enable during plugin --> ${BOLD}Completed${UNBOLD}"
+       fi
+    fi
+  fi
+  echo "|------------------------|"
+elif [ "${CREATE}" == "no" ] || [ "${CREATE}" == "" ] 
+  then 
+     echo " "
+     echo "You ${BOLD} \"Cancel\" Configuration ${UNBOLD},Please renew configuration again .."
+     wrlog "You \"Cancel\" Configuration .."
+     echo " "
+     echo " "
+     continue
+fi
+
+ echo " "
+
+ echo "------ Please Verify Configuration -----"
+ cat ${FILECONF}
+  CONCK=$(echo "${FILECONF}" |awk -F"/" '{print $NF}' |awk -F".conf" '{print $1}')
+ echo " " 
+
+ if [ "${MASTER_CONF}" == "udrx" ] ;then 
+  echo " " >> ${FILESCRIPT}  
+  if [ "${NAMECONF}" != "" ] ;then
+     CONCK=${NAMECONF}
+   fi
+  echo "############# ${CONCK} ###########" >> ${FILESCRIPT}  
+  echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT} 
+  echo "udr_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT}
+ elif  [ "${MASTER_CONF}" == "udrx_centralizedlog" ]  ;then
+  echo " " >> ${FILESCRIPT}
+  if [ "${NAMECONF}" != "" ] ;then
+     CONCK=${NAMECONF}
+  fi
+  echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+  echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+  echo "backupudr_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT}
+ elif [ "${MASTER_CONF}" == "afdetaillog" ] || [ "${MASTER_CONF}" == "aferrorlog" ] || [ "${MASTER_CONF}" == "afrecoverylog" ] || [ "${MASTER_CONF}" == "afsummarylog" ] || [ "${MASTER_CONF}" == "afstat" ] || [ "${MASTER_CONF}" == "aflog" ] ||  [ "${MASTER_CONF}" == "afalarm" ] || [ "${MASTER_CONF}" == "affirstactlog" ] || [ "${MASTER_CONF}" == "afactivitylog" ]
+  then 
+    echo " " >> ${FILESCRIPT}
+    if [ "${NAMECONF}" != "" ] ;then
+     CONCK=${NAMECONF}
+    fi
+    echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+    echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+    echo "af_onm_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT} 
+elif [ "${MASTER_CONF}" == "afreport8x" ]
+  then
+    echo " " >> ${FILESCRIPT}
+    if [ "${NAMECONF}" != "" ];then
+     CONCK=${NAMECONF}
+    fi
+    echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+    echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+    echo "af_report_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT}
+ elif [ "${MASTER_CONF}" == "report8x" ]
+  then
+    echo " " >> ${FILESCRIPT}
+    if [ "${NAMECONF}" != "" ];then
+     CONCK=${NAMECONF}
+    fi
+    echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+    echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+    echo "report_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT}
+ elif [ "${MASTER_CONF}" == "equinoxClog" ] || [ "${MASTER_CONF}" == "equinoxCstat" ]  
+  then 
+    echo " " >> ${FILESCRIPT}
+    if [ "${NAMECONF}" != "" ];then
+     CONCK=${NAMECONF}
+    fi
+    echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+    echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+    echo "equinox_onm_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT} 
+ elif [ "${MASTER_CONF}" == "equinoxASlog" ] || [ "${MASTER_CONF}" == "equinoxASstat" ] 
+   then
+      echo " " >> ${FILESCRIPT}
+      if [ "${NAMECONF}" != "" ] ;then
+        CONCK=${NAMECONF}
+      fi
+      echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+      echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+      echo "equinoxAS_onm_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT}
+ elif [ "${MASTER_CONF}" == "reportbss" ] || [ "${MASTER_CONF}" == "custombss" ]
+   then
+      echo " " >> ${FILESCRIPT}
+      if [ "${NAMECONF}" != "" ] ;then
+        CONCK=${NAMECONF}
+      fi
+      echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+      echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+      echo "report_bss_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT}  
+ elif [ "${MASTER_CONF}" == "scp_custom_bss" ]
+      then
+      echo " " >> ${FILESCRIPT}
+      if [ "${NAMECONF}" != "" ] ;then
+        CONCK=${NAMECONF}
+      fi
+      echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+      echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+      echo "scp_bss_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT}
+ else 
+      echo " " >> ${FILESCRIPT}
+      if [ "${NAMECONF}" != "" ] ;then
+        CONCK=${NAMECONF}
+      fi
+      echo "############# ${CONCK} ###########" >> ${FILESCRIPT}
+      echo ". \${CONFIG_PATH}/${CONCK}.conf" >> ${FILESCRIPT}
+      echo "cus_data_copy_file \"\${SOURCE_PATH}\" \"\${DEST_PATH}\" \"\${FILE_PREFIX}\" \"\${FILE_TYPE}\" \"\${POSTACTION}\" \"\${SOURCE_BACKUP_PATH}\" \"\${HISTORY_FILE}\" " >> ${FILESCRIPT}
+ fi 
+
+cat ${FILESCRIPT}
+echo "  "
+echo "------------------------------------------------------"
+echo -n "${BOLD}Deploy Sand file rotor Script or not? <yes,any key word>:${UNBOLD}"
+read -e APPLY
+ if [ "${APPLY}" == "yes" ] 
+   then
+    wrlog "Apply Scrip is \"yes\"" 
+    if [ "${NAMECONF}" == "" ] 
+      then 
+       CONFAPPLY=$(echo "${FILECONF}"|awk -F"/" '{print $NF}' |awk -F. '{print $1}')
+    else 
+       CONFAPPLY=${NAMECONF}
+    fi
+   if [ "${SAND_SCRIPTNAME}" == "" ];then 
+    FILEAPPLY=$(echo "${FILESCRIPT}"|awk -F"/" '{print $NF}' |awk -F. '{print $1}')
+     cp -f ${FILESCRIPT} ${SAND_FILE_CURRENT_PATH}/${FILEAPPLY}.bash
+     if [ $? -eq 0 ]
+      then 
+       echo " "
+       replace_main
+       chmod 755 ${SAND_FILE_CURRENT_PATH}/${FILEAPPLY}.bash
+       echo  "Deploy master script \"${FILEAPPLY}.bash\"--> ${BOLD}Completed${UNBOLD}"
+       wrlog  "Deploy master script \"${FILEAPPLY}.bash\"--> Completed"
+       rm ${FILESCRIPT}
+       CK1=$?
+     else 
+      CK1=$?
+      echo  "Deploy master script \"${FILEAPPLY}.bash\"--> ${BOLD}Failed${UNBOLD}"
+      wrlog  "Deploy master script \"${FILEAPPLY}.bash\"--> Failed"
+     fi
+   else 
+     cp -f ${FILESCRIPT} ${SAND_FILE_CURRENT_PATH}/${SAND_SCRIPTNAME}.bash
+     if [ $? -eq 0 ]
+      then 
+       echo " "
+       replace_main
+       chmod 755 ${SAND_FILE_CURRENT_PATH}/${SAND_SCRIPTNAME}.bash
+       FILEAPPLY=${SAND_SCRIPTNAME}
+       echo  "Deploy master script \"${SAND_SCRIPTNAME}.bash\"--> ${BOLD}Completed${UNBOLD}"
+       wrlog  "Deploy master script \"${SAND_SCRIPTNAME}.bash\"--> Completed"
+       rm ${FILESCRIPT}
+       CK1=$?
+     else 
+      CK1=$?
+      echo  "Deploy master script \"${SAND_SCRIPTNAME}.bash\"--> ${BOLD}Failed${UNBOLD}"
+      wrlog  "Deploy master script \"${SAND_SCRIPTNAME}.bash\"--> Failed"
+     fi  
+   fi
+ 
+     ls -l ${TEMPPRECONF}/*.$$|grep -v "plugin" |awk '{print $NF}'|while read FCONF 
+      do 
+        NAMECONF=$(echo "${FCONF}" |awk -F"/" '{print $NF}'|cut -d. -f1)
+        cp -f ${FCONF} ${SAND_FILE_CURRENT_PATH}/conf/${NAMECONF}.conf
+         if [ $? -eq 0 ]
+           then 
+             replace_main
+             echo  "Deploy configuration script \"${NAMECONF}.conf\"--> ${BOLD}Completed${UNBOLD}"
+             wrlog "Deploy configuration script \"${NAMECONF}.conf\"--> Completed"
+             rm ${FCONF}
+          else 
+            echo  "Deploy configuration script \"${NAMECONF}.conf\"--> ${BOLD}failed${UNBOLD}"
+            wrlog "Deploy configuration script \"${NAMECONF}.conf\"--> failed"
+         fi
+      done
+     if [ "${PLUG}" != "" ] 
+        then 
+           cp -f ${FILEPLUGIN}  ${SAND_FILE_CURRENT_PATH}/plugin/${PLUG}
+            if [ $? -eq 0 ] 
+              then 
+                replace_main
+                echo  "Deploy plugin script \"${PLUG}\"--> ${BOLD}Completed${UNBOLD}"
+                wrlog  "Deploy plugin script \"${PLUG}\"--> Completed"
+             else 
+                echo  "Deploy plugin script \"${PLUG}\"--> ${BOLD}failed${UNBOLD}"
+                wrlog  "Deploy plugin script \"${PLUG}\"--> failed"
+            fi
+     fi
+     if [ $CK1 -eq 0 ] ;then
+       wrlog "Apply Script -->Completed"
+       echo "Apply Script --> ${BOLD}Completed ...${UNBOLD}"
+       rm -f ${LOG_SCRIPT}/*.log
+       if [ $? -eq 0 ] 
+          then 
+           wrlog "Clear Sand file rotor Log --> Completed "
+           echo "Clear Sand file rotor Log --> ${BOLD}Completed ...${UNBOLD}" 
+        fi
+       echo " "
+       echo -n "${BOLD}Setup Crontab for this script or not ? <yes,no>:${UNBOLD}"
+       read -e CRON
+      if [ "${CRON}" == "yes" ] ;then
+       wrlog "Enable crontab is \"yes\""
+       
+       crontab -l |grep -v "^#" |grep "${FILEAPPLY}.bash" 
+         if [ $? -eq 0 ] 
+           then 
+            wrlog "Crontab ${FILEAPPLY}.bash already exist script have deleted.."
+            echo "Crontab ${FILEAPPLY}.bash already exist script have deleted .." 
+            crontab -l |sed "/${FILEAPPLY}.bash/ d"|crontab 
+            if [ $? -eq 0 ];then 
+             echo "Delete crontab ${FILEAPPLY}.bash -->  ${BOLD}Completed ...${UNBOLD}"
+            fi
+         fi
+        
+
+       TITLE_OLD=$(crontab -l |grep "######## ${VERSION} ########")
+       if [ "${TITLE_OLD}" == "" ];then 
+              crontab -l > .setcron_$$
+              echo "######## ${VERSION} ########" >> .setcron_$$
+              echo " " >> .setcron_$$
+              crontab .setcron_$$
+       fi
+
+       if [ "${FILEAPPLY}.bash" == "af_onm.bash" ]
+         then 
+          crontab -l > .setcron_$$
+          echo "01,16,32,47 * * * * ${SAND_FILE_CURRENT_PATH}/af_onm.bash" >> .setcron_$$
+           crontab .setcron_$$
+           if [ $? -eq 0 ] 
+              then 
+                  crontab -l 
+                  echo "Setting crontab --> ${BOLD}Completed ..${UNBOLD}" 
+                  wrlog "Setting crontab --> Completed .." 
+           fi
+         elif [ $(echo "${FILEAPPLY}" | egrep ^cdr*) ]
+          then 
+             crontab -l > .setcron_$$
+             echo "03,18,33,48 * * * * ${SAND_FILE_CURRENT_PATH}/${FILEAPPLY}.bash" >> .setcron_$$
+             crontab .setcron_$$
+             if [ $? -eq 0 ] 
+               then crontab -l 
+               echo "Setting crontab --> ${BOLD}Completed ..${UNBOLD}" 
+               wrlog "Setting crontab --> Completed .."
+             fi
+         elif [ $(echo "${FILEAPPLY}" | egrep ^report[8][0-9]) ]
+          then
+             crontab -l > .setcron_$$
+             echo "03-59/15 * * * * ${SAND_FILE_CURRENT_PATH}/${FILEAPPLY}.bash" >> .setcron_$$
+             crontab .setcron_$$
+             if [ $? -eq 0 ]
+               then crontab -l
+               echo "Setting crontab --> ${BOLD}Completed ..${UNBOLD}" 
+               wrlog "Setting crontab --> Completed .."
+             fi
+         elif [ $(echo "${FILEAPPLY}" | egrep ^report[8][0-9]_centralizedlog) ]
+          then
+             crontab -l > .setcron_$$
+             echo "04-59/15 * * * * ${SAND_FILE_CURRENT_PATH}/${FILEAPPLY}.bash" >> .setcron_$$
+             crontab .setcron_$$
+             if [ $? -eq 0 ]
+               then crontab -l
+               echo "Setting crontab --> ${BOLD}Completed ..${UNBOLD}" 
+               wrlog "Setting crontab --> Completed .."
+             fi
+        elif [ "${FILEAPPLY}.bash" == "udr_centralizedlog.bash" ] 
+          then 
+             crontab -l > .setcron_$$
+             echo "05,20,35,50 * * * * ${SAND_FILE_CURRENT_PATH}/udr_centralizedlog.bash" >> .setcron_$$
+             crontab .setcron_$$
+             if [ $? -eq 0 ] 
+                 then 
+                  crontab -l 
+                  echo "Setting crontab --> ${BOLD}Completed ..${UNBOLD}" 
+                  wrlog "Setting crontab --> Completed .."
+             fi
+        elif [ "${FILEAPPLY}.bash" == "equinox_onm.bash" ]
+          then
+             crontab -l > .setcron_$$
+             echo "10,25,40,55 * * * * ${SAND_FILE_CURRENT_PATH}/equinox_onm.bash" >> .setcron_$$
+             crontab .setcron_$$
+             if [ $? -eq 0 ] 
+               then 
+                  crontab -l  
+                  echo "Setting crontab --> ${BOLD}Completed ..${UNBOLD}" 
+                  wrlog "Setting crontab --> Completed .."
+             fi
+        elif [ "${FILEAPPLY}.bash" == "equinoxAS_onm.bash" ]
+          then
+             crontab -l > .setcron_$$
+             echo "14,29,44,59 * * * * ${SAND_FILE_CURRENT_PATH}/equinoxAS_onm.bash" >> .setcron_$$
+             crontab .setcron_$$
+             if [ $? -eq 0 ] 
+                then crontab -l 
+                echo "Setting crontab --> ${BOLD}Completed ..${UNBOLD}" 
+                wrlog "Setting crontab --> Completed .."
+             fi
+         else 
+            crontab -l > .setcron_$$
+             echo "*/15 * * * * ${SAND_FILE_CURRENT_PATH}/${FILEAPPLY}.bash" >> .setcron_$$
+             crontab .setcron_$$
+             if [ $? -eq 0 ]
+                then crontab -l
+                echo "Setting default crontab --> ${BOLD}Completed ..${UNBOLD}" 
+                wrlog "Setting default crontab --> Completed .."
+             fi
+        fi
+        exit 100
+      else 
+       exit 100
+     fi
+   fi
+ fi
+echo " "
+echo " "
+echo "$(date +%Y%m%d:%H%M%S) --> ${HISTORY_CONF}" >> ${TEMP}/$$.tmp
+((COUNT++))
+NAMECONF=""
+done
+
+

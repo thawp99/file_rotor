@@ -1,0 +1,46 @@
+#!/bin/bash
+
+. /home/ec2-user/sand_filerotor/conf/main.conf
+. /home/ec2-user/sand_filerotor/conf/udr_centralizedlog.conf
+
+	
+#MD_MAIN_PATH=/md/cdr
+#MD_TEMP_PATH=/md/tmp
+#/centralizedlog/cdr/suk1/20130503/
+MAIN_PATH=/centralizedlog/cdr
+TEMP_PATH=/tmp
+
+mkdir -p ${TEMP_PATH}/ 2>/dev/null
+
+CDR_DEL_HEADER="version=|<opudr>|</opudr>|DOCTYPE"
+
+WRITE_HEADER(){
+
+echo "<?xml version='1.0'?>" > ${1}
+echo "<!DOCTYPE opudr SYSTEM 'http://10.217.46.122/DTD/opudr.dtd'>" >> ${1}
+echo "<opudr>" >> ${1}
+
+}
+
+WRITE_FOOTER(){
+
+echo "</opudr>" >> ${1}
+
+}
+
+    for file in $(ls ${MAIN_PATH}/$(date +%Y%m%d)/*.${FILE_TYPE}.* 2>/dev/null |grep -v "${CONTROL_FILE_SUFFIX}")
+      do
+         if [ -f "${file}.${CONTROL_FILE_SUFFIX}" ]
+           then
+            rm -f ${file}.${CONTROL_FILE_SUFFIX}
+            filename=$(basename ${file})
+            temp_file=${TEMP_PATH}/${filename}.tmp
+            WRITE_HEADER "${temp_file}"   
+            cat ${file} |egrep -v "${CDR_DEL_HEADER}" >> ${temp_file}
+            WRITE_FOOTER "${temp_file}"   
+            mv -f ${temp_file} ${file} 
+            touch ${file}.${CONTROL_FILE_SUFFIX}
+			chmod 777 ${file}
+            chmod 777 ${file}.${CONTROL_FILE_SUFFIX}
+         fi
+    done 

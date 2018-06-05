@@ -1,0 +1,4 @@
+WRITE_LOG ()
+{
+   echo "$(date +%Y%m%d:%H%M%S) : ${1}" >> ${LOG_FILE} #-- Please difind LOGFILE in your script before
+}

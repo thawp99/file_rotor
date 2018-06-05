@@ -1,0 +1,20 @@
+20180221:170221:Select sand file script template is "udrx_centralizedlog.bash"
+20180221:170231:Select Sand file configure template "udrx_centralizedlog.conf"
+20180221:170307:Post action  mode is "backup"
+20180221:170326:Not using file Midfix ..
+20180221:170351:Configure script udrx_centralizedlog.bash ..
+20180221:170351:Change Aplication name to udr_cent_test --> Completed
+20180221:170351:Configure Source path:/eqx//af/cdr/mddone --> Completed
+20180221:170351:Configure Dest path:"/centralizedlog/af/cdr" --> Completed
+20180221:170351:Configure Post action --> Completed
+20180221:170351:Configure Backup path:/centralizedlog/af/cdr/backup --> Completed
+20180221:170351:Configure Day zip: Day--> Completed
+20180221:170351:Configure Day keep: Day--> Completed
+20180221:170351:Configure File Prefix  --> Completed
+20180221:170351:Configure File Type --> Completed
+20180221:170351:Configure File Suffix --> Completed
+20180221:170356:Apply Scrip is "yes"
+20180221:170356:Deploy master script "udr_cent_test.bash"--> Completed
+20180221:170356:Deploy configuration script "udr_cent_test.conf"--> Completed
+20180221:170356:Apply Script -->Completed
+20180221:170356:Clear Sand file rotor Log --> Completed 

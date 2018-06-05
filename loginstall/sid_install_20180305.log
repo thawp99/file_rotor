@@ -1,0 +1,50 @@
+20180305:114623:Select sand file script template is "af_onm.bash"
+20180305:114634:Select Sand file configure template "aflog.conf"
+20180305:114650:Post action  mode is "delete"
+20180305:114656:Not using file Prefix ..
+20180305:114657:Not using file Midfix ..
+20180305:114707:Configure script af_onm.bash ..
+20180305:114707:Configure Source path:/eqx/af/log --> Completed
+20180305:114707:Configure Dest path:"/centralizedlog/aflog" --> Completed
+20180305:114707:Configure Post action --> Completed
+20180305:114707:Configure File Type --> Completed
+20180305:114707:Configure File Suffix --> Completed
+20180305:114708:Apply Scrip is "yes"
+20180305:114709:Deploy master script "af_onm.bash"--> Completed
+20180305:114709:Deploy configuration script "aflog.conf"--> Completed
+20180305:114709:Apply Script -->Completed
+20180305:114709:Clear Sand file rotor Log --> Completed 
+20180305:153310:Select sand file script template is "customlog.bash"
+20180305:153320:Select Sand file configure template "customlog.conf"
+20180305:153352:Post action  mode is "delete"
+20180305:153353:Not using file Prefix ..
+20180305:153354:Not using file Midfix ..
+20180305:153359:Configure script customlog.bash ..
+20180305:153359:Change Aplication name to test_app01 --> Completed
+20180305:153359:Configure Source path:/eqx/af/test_app01 --> Completed
+20180305:153359:Configure Dest path:"/centralizedlog/aftest" --> Completed
+20180305:153359:Configure Post action --> Completed
+20180305:153359:Configure File Type --> Completed
+20180305:153359:Configure File Suffix --> Completed
+20180305:153400:Apply Scrip is "yes"
+20180305:153400:Deploy master script "test_app01.bash"--> Completed
+20180305:153400:Deploy configuration script "test_app01.conf"--> Completed
+20180305:153400:Apply Script -->Completed
+20180305:153400:Clear Sand file rotor Log --> Completed 
+20180305:161829:Select sand file script template is "customlog.bash"
+20180305:161835:Select Sand file configure template "customlog.conf"
+20180305:161918:Post action  mode is "delete"
+20180305:161919:Not using file Prefix ..
+20180305:161920:Not using file Midfix ..
+20180305:161925:Configure script customlog.bash ..
+20180305:161925:Change Aplication name to test_cust --> Completed
+20180305:161925:Configure Source path:/eqx/af/test_cust --> Completed
+20180305:161925:Configure Dest path:"/centralizedlog/test_cust" --> Completed
+20180305:161925:Configure Post action --> Completed
+20180305:161925:Configure File Type --> Completed
+20180305:161925:Configure File Suffix --> Completed
+20180305:161930:Apply Scrip is "yes"
+20180305:161930:Deploy master script "test_cust.bash"--> Completed
+20180305:161930:Deploy configuration script "test_cust.conf"--> Completed
+20180305:161930:Apply Script -->Completed
+20180305:161930:Clear Sand file rotor Log --> Completed 

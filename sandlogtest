@@ -1,0 +1,168 @@
+#!/bin/bash 
+###########
+#Build date 30/06/2017
+#By Sid deploy team
+############
+
+### Configure Here ###
+NUMBERFILE=5
+ROWOFFILE=5
+TDATE=20160529 ## Date for build file timestamp  
+#####################
+INGNORE_NAME="sandlogtest|initpath"
+#####################
+TIMEH=00
+TIMEM=00
+TISEC=00
+NUMBER=0
+BOLD=$(tput bold)
+UNBOLD=$(tput sgr0)
+HOSTNAME=$(hostname)
+rand_time(){
+TIMEH=$(( ( RANDOM % 20 )  + 1 ))
+TIMEM=$(( ( RANDOM % 20 )  + 1 ))
+#TISEC=$(( ( RANDOM % 20 )  + 1 ))
+if [ ${TIMEH} -lt 10 ] ;then TIMEH="0"${TIMEH} ;fi
+if [ ${TIMEM} -lt 10 ] ;then TIMEM="0"${TIMEM} ;fi
+#if [ ${TISEC} -lt 10 ] ;then TISEC="0"${TIMEM} ;fi
+}
+clear
+if [ $# -eq 1 ];then 
+  if [ "$1" == "-d" ];then 
+      OPT=DEBUG
+  elif  [ "$1" == "-g" ];then
+      OPT=GEN
+  elif  [ "$1" == "-r" ];then
+      OPT=RUN
+  else 
+    echo "$0 <-r><-g><-d>" 
+    echo " [Option]"
+    echo "     -r Running sand log test .. "
+    echo "     -g Generate sand file log test .."
+    echo "     -d Generate , running  and redirect output debug filei .."
+    exit 100
+  fi
+else 
+    echo "$0 <-r><-g><-d>" 
+    echo " [Option]"
+    echo "     -r Running sand log test .. "
+    echo "     -g Generate sand file log test .."
+    echo "     -d Generate , running  and redirect output debug filei .."
+    exit 100
+  fi
+
+if [ "${OPT}" == "GEN" ] || [ "${OPT}" == "DEBUG" ];then 
+ echo "${BOLD}  ==> Generate Source File <== ${UNBOLD}"
+ echo "${BOLD}+--------------------------------------+${UNBOLD}"
+ echo "${BOLD}|     Choose your sand file Script     |${UNBOLD}"
+ echo "${BOLD}+--------------------------------------+${UNBOLD}"
+ select cfm in $(ls -ltr *.bash|egrep -v "sandlogtest|initpath" |awk '{print $NF}')
+   do
+      if [ "${cfm}" != "" ]
+       then
+         break;
+     else
+         echo "Select choice number as above only .."
+         continue
+     fi
+  done
+
+if [ "${OPT}" == "GEN" ];then 
+  while :
+  do
+    echo -n "Enter Date for Generate Log File:"
+    read TDATE
+    echo "${TDATE}"|grep -E [0-9]{4}[0-1][0-9][0-3][0-9]$;
+    if [ $? -ne 0 ];then
+       echo "Format incorrect ,using this format <YYYYMMDD>" 
+       continue
+    else
+      break
+   fi
+  done
+fi
+
+while : 
+ do
+ rand_time
+ if [ -z ${cfm} ] ;then
+       continue
+ else
+     NAME_MAIN=$(echo ${cfm}|awk -F".bash" '{print $1}')
+     NAME_MAIN="Test_${NAME_MAIN}_$$"
+     cat ${cfm} |grep conf |egrep -v "/alarm.conf|main"|awk -F"/" '{print $NF}'|while read line  
+         do 
+             TEST_PATH=$(grep "^SOURCE_PATH" conf/$line|grep -v "#" |awk -F"=" '{print $2}')
+             TYPE=$(grep "FILE_TYPE" conf/$line|grep -v "#"|awk -F"=" '{print $2}'|sed "s/\"//g")
+             FILEPREFIX=$(grep "FILE_PREFIX" conf/$line|grep -v "#"|awk -F"=" '{print $2}'|sed "s/\"//g")
+             FILEMIDFIX=$(grep "FILE_MIDFIX" conf/$line|grep -v "#"|awk -F"=" '{print $2}'|sed "s/\"//g")
+             TIMETEST="${TDATE}${TIMEH}${TIMEM}.${TISEC}"
+             FTEST="${TDATE}${TIMEH}${TIMEM}"
+             if [ "${FILEPREFIX}" != "" ] && [ "${FILEMIDFIX}" != "" ];then 
+                touch -t ${TIMETEST} ${TEST_PATH}/${FILEPREFIX}${FILEMIDFIX}_${NAME_MAIN}_${FTEST}${TISEC}.${TYPE}
+                FILELOG=${TEST_PATH}/${FILEPREFIX}${FILEMIDFIX}_${NAME_MAIN}_${FTEST}${TISEC}.${TYPE}
+             elif [ "${FILEPREFIX}" != "" ] && [ "${FILEMIDFIX}" == "" ];then 
+                touch -t ${TIMETEST} ${TEST_PATH}/${FILEPREFIX}_${NAME_MAIN}_${FTEST}${TISEC}.${TYPE}
+                FILELOG=${TEST_PATH}/${FILEPREFIX}_${NAME_MAIN}_${FTEST}${TISEC}.${TYPE}
+             elif [ "${FILEPREFIX}" == "" ] && [ "${FILEMIDFIX}" != "" ];then
+                touch -t ${TIMETEST} ${TEST_PATH}/${FILEMIDFIX}_${NAME_MAIN}_${FTEST}${TISEC}.${TYPE}
+                FILELOG=${TEST_PATH}/${FILEPREFIX}_${NAME_MAIN}_${FTEST}${TISEC}.${TYPE}
+             else 
+                 touch -t ${TIMETEST} ${TEST_PATH}/${NAME_MAIN}_${FTEST}${TISEC}.${TYPE}   
+                FILELOG=${TEST_PATH}/${NAME_MAIN}_${FTEST}${TISEC}.${TYPE}
+              fi
+              
+              while : ;do 
+                echo "$(date +%Y%m%d) --> generate row for test sand file number ${ROWOFFILE}" >> ${FILELOG}
+                ((ROWOFFILE --))
+                if [ ${ROWOFFILE} -le 0 ];then 
+                    touch -t ${TIMETEST} ${FILELOG}
+                    break
+                 else 
+                   continue
+                fi
+              done
+             ls -ltr ${FILELOG} 2> /dev/null
+             if [ $? -ne 0 ];then echo "Build File ${FILELOG} --> Failed ";exit 100 ;fi
+             sleep 1
+             echo "-------------"
+    done
+fi
+ ((NUMBER ++))
+   if [ ${NUMBER} -eq ${NUMBERFILE} ];then 
+    break
+   fi
+done
+fi
+
+
+if [ "${OPT}" == "RUN" ] || [ "${OPT}" == "DEBUG" ] ;then
+echo "${BOLD}+--------------------------------------+${UNBOLD}"
+echo "${BOLD}| Choose your sand file Script for test|${UNBOLD}"
+echo "${BOLD}+--------------------------------------+${UNBOLD}"
+select cf in $(ls -ltr *.bash|egrep -v "${INGNORE_NAME}" |awk '{print $NF}')
+  do
+     if [ "${cf}" != "" ]
+       then
+         break;
+     else
+         echo "Select choice number as above only .."
+         continue
+     fi
+ done
+     if [ -z ${cf} ] ;then
+       continue
+     else 
+         sleep 1
+         echo " "
+         echo "${BOLD} --> Process test Running Script ${cf} .. ${UNBOLD}"
+         bash -x ${cf} > .$$_sand_test.tmp 2>&1 #2>/dev/null
+         grep "WRITE_LOG" .$$_sand_test.tmp|awk -F"'" '{print $2}'
+         echo "--------------------------"
+         if [ "${OPT}" == "DEBUG" ];then 
+          cp -f .$$_sand_test.tmp ${cf}_$$.debug
+         fi
+         rm .$$_sand_test.tmp
+         sleep 2
+     fi
+fi
